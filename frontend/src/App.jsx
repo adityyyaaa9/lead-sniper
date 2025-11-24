@@ -62,8 +62,7 @@ export default function App() {
 
       // --- CONNECT TO PYTHON BACKEND ---
 
-      const response = await fetch('https://lead-sniper.onrender.com', {
-
+      const response = await fetch('https://lead-sniper.onrender.com/api/search', {
         method: 'POST',
 
         headers: { 'Content-Type': 'application/json' },
