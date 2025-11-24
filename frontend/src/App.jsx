@@ -62,7 +62,7 @@ export default function App() {
 
       // --- CONNECT TO PYTHON BACKEND ---
 
-      const response = await fetch('http://127.0.0.1:5000/api/search', {
+      const response = await fetch('https://lead-sniper.onrender.com', {
 
         method: 'POST',
 
