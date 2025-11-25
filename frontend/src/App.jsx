@@ -1,343 +1,195 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Search, 
-  Terminal, 
-  CheckCircle, 
-  AlertCircle, 
-  Download, 
-  TrendingUp, 
-  MessageSquare, 
-  User, 
-  Zap, 
-  Lock,
-  Loader2,
-  ChevronRight,
-  Filter
-} from 'lucide-react';
+import { Search, Zap, CheckCircle, ArrowRight, Loader2, Lock, Star } from 'lucide-react';
 
-// --- MOCK DATA GENERATOR ---
-// This simulates the backend AI logic for the demo
-const generateMockLeads = (topic) => {
-  const keywords = topic.split(' ').filter(w => w.length > 3);
-  const mainKeyword = keywords[0] || "product";
-  
-  const subreddits = ['r/entrepreneur', 'r/marketing', 'r/smallbusiness', 'r/startups', 'r/productivity'];
-  
-  const templates = [
-    { text: `I'm really struggling with ${mainKeyword}. Does anyone have a good solution?`, score: 95, sentiment: "Hot Lead" },
-    { text: `Looking for alternatives to my current ${mainKeyword} tool. It's too expensive.`, score: 88, sentiment: "Warm Lead" },
-    { text: `Has anyone tried ${mainKeyword} for their business? Is it worth it?`, score: 72, sentiment: "Curious" },
-    { text: `I built a ${mainKeyword} from scratch, here is how I did it.`, score: 20, sentiment: "Noise" },
-    { text: `Why is finding a decent ${mainKeyword} so hard these days?`, score: 91, sentiment: "Hot Lead" },
-  ];
-
-  return Array.from({ length: 8 }).map((_, i) => {
-    const template = templates[i % templates.length];
-    return {
-      id: i,
-      username: `user_${Math.floor(Math.random() * 10000)}`,
-      subreddit: subreddits[Math.floor(Math.random() * subreddits.length)],
-      content: template.text,
-      score: template.score,
-      sentiment: template.sentiment,
-      ago: `${Math.floor(Math.random() * 23) + 1}h ago`,
-      comments: Math.floor(Math.random() * 50),
-      url: '#'
-    };
-  }).sort((a, b) => b.score - a.score); // Sort by highest score
-};
-
-export default function RedditLeadGenApp() {
-  const [step, setStep] = useState('input'); // input, processing, results
+export default function App() {
+  const [step, setStep] = useState('input'); 
   const [productDesc, setProductDesc] = useState('');
   const [logs, setLogs] = useState([]);
   const [leads, setLeads] = useState([]);
-  const [showPaywall, setShowPaywall] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isPro, setIsPro] = useState(false); 
   const logEndRef = useRef(null);
 
-  // Auto-scroll logs
+  // *** YOUR ACTUAL PAYU LINK ***
+  const PAYU_LINK = "https://u.payu.in/PAYUMN/Hrn6dcOyl0Ic"; 
+
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
-  const handleSearch = () => {
-    if (!productDesc.trim()) return;
-    setStep('processing');
-    setLogs([]);
-    
-    const steps = [
-      { msg: "Analyzing product description...", delay: 800 },
-      { msg: `Extracting core keywords: "${productDesc.split(' ').slice(0,3).join(', ')}..."`, delay: 1800 },
-      { msg: "Identifying high-relevance subreddits...", delay: 2800 },
-      { msg: "Connecting to Reddit API...", delay: 3500 },
-      { msg: "Scanning last 24h of discussions...", delay: 4500 },
-      { msg: "Filtering for buying intent using GPT-4...", delay: 6000 },
-      { msg: "Found 14 potential leads...", delay: 7000 },
-      { msg: "Ranking leads by 'Warmth Score'...", delay: 8000 },
-    ];
-
-    let currentDelay = 0;
-    steps.forEach(({ msg, delay }) => {
-      setTimeout(() => {
-        setLogs(prev => [...prev, msg]);
-      }, delay);
-      currentDelay = delay;
-    });
-
-    setTimeout(() => {
-      setLeads(generateMockLeads(productDesc));
-      setStep('results');
-    }, 8500);
+  const addLog = (message) => {
+    setLogs(prev => [...prev, message]);
   };
 
+  const handleSearch = async () => {
+    if (!productDesc.trim()) return;
+    
+    setStep('processing');
+    setIsLoading(true);
+    setLogs([]);
+    setLeads([]);
+
+    addLog("Initializing search agent...");
+    
+    try {
+      const response = await fetch('https://lead-sniper.onrender.com/api/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product: productDesc }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        addLog("Connected to Reddit API...");
+        setTimeout(() => {
+             addLog(`Found ${data.data.length} leads.`);
+             setLeads(data.data);
+             setStep('results');
+             setIsLoading(false);
+        }, 1500);
+      } 
+
+    } catch (error) {
+      console.error(error);
+      addLog("⚠️ Error: Backend issue. Retrying...");
+      setIsLoading(false);
+    }
+  };
+
+  const visibleLeads = isPro ? leads : leads.slice(0, 2);
+
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-      
+    <div style={styles.appContainer}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        body { margin: 0; font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #0f172a; }
+        textarea:focus { outline: none; border-color: #ea580c; }
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
+
       {/* HEADER */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="bg-blue-600 text-white p-1.5 rounded-lg">
-              <Zap size={20} fill="currentColor" />
-            </div>
-            <span className="font-bold text-xl tracking-tight">LeadSniper<span className="text-blue-600">.ai</span></span>
-          </div>
-          <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600">
-            <a href="#" className="hover:text-blue-600">How it works</a>
-            <a href="#" className="hover:text-blue-600">Pricing</a>
-            <div className="h-4 w-px bg-slate-300"></div>
-            <button className="text-slate-900 hover:text-blue-600">Login</button>
-            <button className="bg-slate-900 text-white px-4 py-2 rounded-lg hover:bg-slate-800 transition">Get Started</button>
-          </nav>
+      <header style={styles.header}>
+        <div style={styles.logo}>
+            <Zap size={24} color="#ea580c" fill="#ea580c" />
+            <span>Lead<span style={{color: '#ea580c'}}>Sniper</span></span>
         </div>
+        {/* Temporary Toggle for Testing */}
+        <button onClick={() => setIsPro(!isPro)} style={styles.demoToggle}>
+            {isPro ? "Demo: Pro Active" : "Demo: Free Mode"}
+        </button>
       </header>
 
-      {/* MAIN CONTENT */}
-      <main className="max-w-4xl mx-auto px-4 py-12">
+      <main style={styles.mainContent}>
         
-        {/* STEP 1: INPUT */}
+        {/* INPUT */}
         {step === 'input' && (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="text-center mb-10">
-              <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 mb-4 tracking-tight">
-                Stop Cold Calling. <br/>
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
-                  Find People Asking for Your Product.
-                </span>
-              </h1>
-              <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-                Our AI scans Reddit for people actively complaining about their current solution or asking for recommendations. Reach out when they are warmest.
-              </p>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-2">
-              <div className="p-6">
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Describe what you are selling in plain English
-                </label>
+          <div style={styles.inputSection}>
+            <h1 style={styles.title}>Find Customers <span style={{color: '#ea580c'}}>Instantly.</span></h1>
+            <p style={styles.subtitle}>Describe your product. AI will find people asking for it.</p>
+            <div style={styles.searchBox}>
                 <textarea 
-                  className="w-full h-32 p-4 text-lg border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none transition-all placeholder:text-slate-300"
-                  placeholder="e.g. An affordable email marketing tool for small agencies that helps with deliverability..."
+                  style={styles.textarea}
+                  placeholder="e.g. I have a tool that helps people write better cold emails..."
                   value={productDesc}
                   onChange={(e) => setProductDesc(e.target.value)}
                 />
-              </div>
-              <div className="bg-slate-50 px-6 py-4 rounded-xl flex items-center justify-between border-t border-slate-100">
-                <div className="flex items-center gap-2 text-sm text-slate-500">
-                  <TrendingUp size={16} />
-                  <span>Scans 500+ communities</span>
-                </div>
-                <button 
-                  onClick={handleSearch}
-                  disabled={!productDesc.trim()}
-                  className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-white transition-all transform active:scale-95 ${
-                    productDesc.trim() 
-                    ? 'bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200' 
-                    : 'bg-slate-300 cursor-not-allowed'
-                  }`}
-                >
-                  <Search size={18} />
-                  Find Warm Leads
+                <button onClick={handleSearch} disabled={!productDesc.trim() || isLoading} style={styles.button}>
+                  {isLoading ? <Loader2 className="spin" /> : <Search size={18} />}
+                  Find Leads
                 </button>
-              </div>
-            </div>
-
-            <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[
-                { icon: MessageSquare, title: "Context Aware", desc: "Doesn't just keyword match. Understands buying intent." },
-                { icon: Filter, title: "Zero Noise", desc: "Filters out competitors and informational posts." },
-                { icon: TrendingUp, title: "Real-Time", desc: "Finds leads posted in the last 24 hours." }
-              ].map((item, i) => (
-                <div key={i} className="flex flex-col items-center text-center p-4">
-                  <div className="bg-blue-50 text-blue-600 p-3 rounded-full mb-3">
-                    <item.icon size={24} />
-                  </div>
-                  <h3 className="font-semibold text-slate-900">{item.title}</h3>
-                  <p className="text-sm text-slate-500 mt-1">{item.desc}</p>
-                </div>
-              ))}
             </div>
           </div>
         )}
 
-        {/* STEP 2: PROCESSING */}
+        {/* PROCESSING */}
         {step === 'processing' && (
-          <div className="max-w-2xl mx-auto animate-in fade-in duration-500">
-             <div className="bg-slate-900 rounded-xl overflow-hidden shadow-2xl font-mono text-sm">
-                <div className="bg-slate-800 px-4 py-2 flex items-center gap-2 border-b border-slate-700">
-                  <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                  <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                  <span className="ml-2 text-slate-400 text-xs">AI Agent Worker</span>
+          <div style={styles.terminalSection}>
+             <div style={styles.terminalWindow}>
+                <div style={styles.terminalHeader}>
+                  <div style={{...styles.dot, background: '#ef4444'}}></div>
+                  <div style={{...styles.dot, background: '#eab308'}}></div>
+                  <div style={{...styles.dot, background: '#22c55e'}}></div>
+                  <span style={{marginLeft: 10, fontSize: '0.8rem', color: '#94a3b8'}}>System Activity</span>
                 </div>
-                <div className="p-6 h-80 overflow-y-auto space-y-3">
+                <div style={styles.terminalBody}>
                   {logs.map((log, i) => (
-                    <div key={i} className="flex gap-3 text-green-400 animate-in slide-in-from-left-2 fade-in duration-300">
-                      <span className="text-slate-600 select-none">{`>`}</span>
-                      <span>{log}</span>
+                    <div key={i} style={{marginBottom: 5}}>
+                      <span style={{opacity: 0.5}}>{`>`}</span> {log}
                     </div>
                   ))}
-                  <div ref={logEndRef} className="flex gap-3 text-green-400">
-                     <span className="text-slate-600 select-none">{`>`}</span>
-                     <span className="animate-pulse">_</span>
-                  </div>
+                  <div ref={logEndRef}></div>
                 </div>
              </div>
-             <p className="text-center text-slate-500 mt-6 animate-pulse">
-               Analyzing millions of discussions... please wait.
-             </p>
           </div>
         )}
 
-        {/* STEP 3: RESULTS */}
+        {/* RESULTS */}
         {step === 'results' && (
-          <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
-            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                  <CheckCircle className="text-green-500" />
-                  Analysis Complete
-                </h2>
-                <p className="text-slate-500">Found {leads.length} high-intent conversations for your product.</p>
-              </div>
-              <div className="flex gap-3">
-                 <button 
-                  onClick={() => { setStep('input'); setProductDesc(''); }}
-                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium transition"
-                >
-                  New Search
-                </button>
-                <button 
-                  onClick={() => setShowPaywall(true)}
-                  className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2 rounded-lg hover:bg-slate-800 transition shadow-lg"
-                >
-                  <Download size={16} />
-                  Export CSV
-                </button>
-              </div>
+          <div style={styles.resultsSection}>
+            <div style={styles.resultsHeader}>
+              <h2 style={{display: 'flex', alignItems: 'center', gap: 10}}>
+                <CheckCircle color="#22c55e" /> Found {leads.length} Leads
+              </h2>
+              <button onClick={() => setStep('input')} style={styles.btnSecondary}>New Search</button>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-semibold">
-                      <th className="p-4">Relevance</th>
-                      <th className="p-4 w-1/2">Discussion Context</th>
-                      <th className="p-4">Subreddit</th>
-                      <th className="p-4">Time</th>
-                      <th className="p-4">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {leads.map((lead) => (
-                      <tr key={lead.id} className="hover:bg-blue-50/50 transition-colors group">
-                        <td className="p-4">
-                          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
-                            lead.score > 90 ? 'bg-green-100 text-green-700' :
-                            lead.score > 80 ? 'bg-blue-100 text-blue-700' :
-                            'bg-amber-100 text-amber-700'
-                          }`}>
-                            <Zap size={12} fill="currentColor" />
-                            {lead.score}% Match
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <p className="text-sm text-slate-900 font-medium mb-1 line-clamp-2">
-                            "{lead.content}"
-                          </p>
-                          <div className="flex items-center gap-2 text-xs text-slate-400">
-                            <User size={12} /> {lead.username}
-                            <span>•</span>
-                            <MessageSquare size={12} /> {lead.comments} comments
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <span className="text-sm text-slate-600 bg-slate-100 px-2 py-1 rounded">
-                            {lead.subreddit}
-                          </span>
-                        </td>
-                        <td className="p-4 text-sm text-slate-500 whitespace-nowrap">
-                          {lead.ago}
-                        </td>
-                        <td className="p-4">
-                          <a 
-                            href={lead.url} 
-                            className="text-blue-600 hover:text-blue-800 font-medium text-sm flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            View <ChevronRight size={14} />
-                          </a>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            
-            <div className="mt-6 text-center text-sm text-slate-400">
-              Showing top 8 results. <button onClick={() => setShowPaywall(true)} className="text-blue-600 hover:underline">Upgrade to Pro</button> to see all 42 results.
+            <div style={styles.leadsList}>
+              {visibleLeads.map((lead) => (
+                <div key={lead.id} style={styles.leadCard}>
+                  <div style={styles.leadHeader}>
+                    <span style={styles.badgeScore}>⚡ {lead.score}% Match</span>
+                  </div>
+                  <h3 style={{margin: '10px 0', fontSize: '1.1rem'}}>{lead.text}</h3>
+                  <div style={styles.leadFooter}>
+                    <button style={styles.actionBtn}>Reply on Reddit <ArrowRight size={14}/></button>
+                  </div>
+                </div>
+              ))}
+
+              {!isPro && (
+                  <div style={styles.paywallCard}>
+                      <Lock size={48} color="#ea580c" style={{marginBottom: 15}} />
+                      <h3 style={{margin: 0}}>Unlock {leads.length - 2} more leads</h3>
+                      <p style={{color: '#64748b'}}>Upgrade to Pro to see all high-intent customers.</p>
+                      <a href={PAYU_LINK} target="_blank" rel="noreferrer" style={{textDecoration: 'none'}}>
+                        <button style={styles.upgradeBtn}>
+                            Unlock Now for ₹399 <Star size={16} fill="white" />
+                        </button>
+                      </a>
+                  </div>
+              )}
             </div>
           </div>
         )}
       </main>
-
-      {/* PAYWALL MODAL */}
-      {showPaywall && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative animate-in zoom-in-95 duration-200">
-            <button 
-              onClick={() => setShowPaywall(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
-            >
-              ✕
-            </button>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Lock size={32} />
-              </div>
-              <h3 className="text-2xl font-bold text-slate-900 mb-2">Unlock Full Report</h3>
-              <p className="text-slate-600 mb-8">
-                Export all 42 identified leads to CSV and get real-time alerts for new keywords.
-              </p>
-              
-              <div className="space-y-4">
-                <button className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-200">
-                  Start 7-Day Free Trial
-                </button>
-                <button className="w-full bg-white border border-slate-200 text-slate-700 py-3 rounded-xl font-semibold hover:bg-slate-50 transition">
-                  $29 / month
-                </button>
-              </div>
-              
-              <p className="text-xs text-slate-400 mt-6">
-                No credit card required for trial. Cancel anytime.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }
+
+const styles = {
+  appContainer: { minHeight: '100vh', display: 'flex', flexDirection: 'column' },
+  header: { background: 'white', borderBottom: '1px solid #e2e8f0', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  logo: { display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '800', fontSize: '1.25rem' },
+  mainContent: { maxWidth: '800px', margin: '0 auto', padding: '4rem 1rem', width: '100%' },
+  inputSection: { textAlign: 'center' },
+  title: { fontSize: '3rem', marginBottom: '1rem', fontWeight: 800 },
+  subtitle: { color: '#64748b', fontSize: '1.2rem', marginBottom: '3rem' },
+  searchBox: { background: 'white', padding: '1.5rem', borderRadius: '1rem', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', border: '1px solid #e2e8f0' },
+  textarea: { width: '100%', height: '120px', border: '2px solid #e2e8f0', borderRadius: '0.5rem', padding: '1rem', fontSize: '1rem', resize: 'none', marginBottom: '1rem', fontFamily: 'inherit', boxSizing: 'border-box' },
+  button: { background: '#ea580c', color: 'white', border: 'none', padding: '0.75rem 1.5rem', borderRadius: '0.5rem', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '1rem', width: '100%' },
+  terminalWindow: { background: '#0f172a', borderRadius: '0.75rem', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)' },
+  terminalHeader: { background: '#1e293b', padding: '0.75rem', display: 'flex', alignItems: 'center', gap: '8px' },
+  dot: { width: '12px', height: '12px', borderRadius: '50%' },
+  terminalBody: { padding: '1.5rem', height: '300px', color: '#4ade80', fontFamily: 'monospace', overflowY: 'auto', textAlign: 'left' },
+  resultsHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' },
+  btnSecondary: { background: 'white', color: '#64748b', border: '1px solid #e2e8f0', padding: '0.5rem 1rem', borderRadius: '0.5rem', cursor: 'pointer' },
+  leadCard: { background: 'white', border: '1px solid #e2e8f0', padding: '1.5rem', borderRadius: '0.75rem', marginBottom: '1rem' },
+  badgeScore: { background: '#dcfce7', color: '#166534', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '700' },
+  leadFooter: { marginTop: '1rem', borderTop: '1px solid #f1f5f9', paddingTop: '1rem' },
+  actionBtn: { background: '#fff7ed', color: '#c2410c', border: 'none', padding: '0.5rem 1rem', fontSize: '0.875rem', fontWeight: 600, borderRadius: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 },
+  paywallCard: { background: 'linear-gradient(145deg, #fff7ed, #ffffff)', border: '2px dashed #ea580c', padding: '3rem', borderRadius: '0.75rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' },
+  upgradeBtn: { background: '#ea580c', color: 'white', border: 'none', padding: '1rem 2rem', borderRadius: '0.5rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.1rem', boxShadow: '0 10px 15px -3px rgba(234, 88, 12, 0.3)', marginTop: '1rem' },
+  demoToggle: { fontSize: '0.7rem', padding: '5px 10px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer' }
+};
