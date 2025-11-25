@@ -75,10 +75,7 @@ export default function App() {
             <Zap size={24} color="#ea580c" fill="#ea580c" />
             <span>Lead<span style={{color: '#ea580c'}}>Sniper</span></span>
         </div>
-        {/* Temporary Toggle for Testing */}
-        <button onClick={() => setIsPro(!isPro)} style={styles.demoToggle}>
-            {isPro ? "Demo: Pro Active" : "Demo: Free Mode"}
-        </button>
+        
       </header>
 
       <main style={styles.mainContent}>
