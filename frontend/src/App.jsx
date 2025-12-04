@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Zap, CheckCircle, ArrowRight, Loader2, Lock, Star, TrendingUp, Users, MessageCircle } from 'lucide-react';
+import { Search, Zap, CheckCircle, ArrowRight, Loader2, Lock, Star, TrendingUp, Users, MessageCircle, Menu } from 'lucide-react';
 
 export default function App() {
   const [step, setStep] = useState('input'); 
@@ -72,94 +72,437 @@ export default function App() {
     }
   };
 
-  const visibleLeads = isPro ? leads : leads.slice(0, 3); // Showing 3 free leads looks generous
+  const visibleLeads = isPro ? leads : leads.slice(0, 3);
 
   return (
-    <div style={styles.page}>
+    <div className="page">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
-        body { margin: 0; font-family: 'Plus Jakarta Sans', sans-serif; background-color: #0f172a; color: white; }
-        .glass-panel {
-          background: rgba(255, 255, 255, 0.03);
-          backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+        
+        /* --- GLOBAL RESETS --- */
+        :root {
+          --primary: #ea580c;
+          --primary-dark: #c2410c;
+          --bg-dark: #0f172a;
+          --glass-bg: rgba(255, 255, 255, 0.03);
+          --glass-border: rgba(255, 255, 255, 0.1);
+          --text-muted: #94a3b8;
         }
+
+        * { box-sizing: border-box; }
+
+        body { 
+          margin: 0; 
+          font-family: 'Plus Jakarta Sans', sans-serif; 
+          background-color: var(--bg-dark); 
+          color: white; 
+          overflow-x: hidden; /* Prevent horizontal scroll on mobile */
+        }
+
+        .page { 
+          min-height: 100vh; 
+          display: flex; 
+          flex-direction: column; 
+          width: 100%;
+        }
+
+        /* --- NAVBAR --- */
+        .nav {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 1.5rem 2rem;
+          width: 100%;
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+
+        .logo {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          font-weight: 800;
+          font-size: 1.25rem;
+          letter-spacing: -0.5px;
+        }
+
+        .logo-icon {
+          background: var(--primary);
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .nav-links {
+          display: flex;
+          gap: 30px;
+          font-size: 0.9rem;
+          color: var(--text-muted);
+          font-weight: 600;
+        }
+
+        .nav-link { cursor: pointer; transition: color 0.2s; }
+        .nav-link:hover { color: white; }
+
+        /* --- HERO SECTION --- */
+        .hero {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 2rem;
+          width: 100%;
+        }
+
+        .hero-content {
+          max-width: 800px;
+          width: 100%;
+          text-align: center;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+
+        .badge {
+          background: rgba(234, 88, 12, 0.1);
+          color: var(--primary);
+          padding: 6px 16px;
+          border-radius: 20px;
+          font-size: 0.85rem;
+          font-weight: 600;
+          margin-bottom: 20px;
+          border: 1px solid rgba(234, 88, 12, 0.2);
+          display: inline-block;
+        }
+
+        .heading {
+          font-size: 4rem;
+          line-height: 1.1;
+          margin-bottom: 20px;
+          font-weight: 800;
+          letter-spacing: -1px;
+        }
+
         .gradient-text {
           background: linear-gradient(to right, #fbbf24, #ea580c);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
         }
+
+        .subheading {
+          font-size: 1.25rem;
+          color: var(--text-muted);
+          margin-bottom: 40px;
+          max-width: 600px;
+          line-height: 1.6;
+        }
+
+        /* --- SEARCH BOX --- */
+        .glass-panel {
+          background: var(--glass-bg);
+          backdrop-filter: blur(10px);
+          border: 1px solid var(--glass-border);
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+          border-radius: 16px;
+          width: 100%;
+        }
+
+        .search-container {
+          padding: 8px;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .textarea {
+          width: 100%;
+          background: transparent;
+          border: none;
+          color: white;
+          font-size: 1.1rem;
+          padding: 20px;
+          min-height: 100px;
+          outline: none;
+          resize: none;
+          font-family: inherit;
+        }
+
+        .search-footer {
+          border-top: 1px solid rgba(255,255,255,0.1);
+          padding: 10px 20px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .scans {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 0.9rem;
+          color: var(--text-muted);
+        }
+
         .primary-btn {
-          background: linear-gradient(to right, #ea580c, #c2410c);
-          transition: all 0.2s;
+          background: linear-gradient(to right, var(--primary), var(--primary-dark));
+          border: none;
+          color: white;
+          padding: 12px 24px;
+          border-radius: 10px;
+          font-size: 1rem;
+          font-weight: 700;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          transition: transform 0.2s;
+          white-space: nowrap;
         }
-        .primary-btn:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 10px 25px -5px rgba(234, 88, 12, 0.4);
+
+        .primary-btn:hover { transform: translateY(-2px); }
+        .primary-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+
+        .social-proof {
+          margin-top: 40px;
+          display: flex;
+          align-items: center;
+          gap: 15px;
+          color: var(--text-muted);
+          font-size: 0.9rem;
         }
+
+        /* --- TERMINAL --- */
+        .center-container {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          width: 100%;
+        }
+
+        .terminal {
+          width: 100%;
+          max-width: 600px;
+          border-radius: 12px;
+          overflow: hidden;
+        }
+
+        .terminal-header {
+          background: rgba(0,0,0,0.3);
+          padding: 12px 20px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .dots { display: flex; gap: 6px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; }
+        .red { background: #ef4444; } .yellow { background: #eab308; } .green { background: #22c55e; }
+
+        .terminal-body {
+          padding: 20px;
+          height: 300px;
+          overflow-y: auto;
+          font-family: monospace;
+          font-size: 0.9rem;
+          color: #e2e8f0;
+          text-align: left;
+        }
+
+        .log-entry { margin-bottom: 8px; display: flex; align-items: flex-start; }
+
+        /* --- RESULTS --- */
+        .results-container {
+          padding: 4rem 2rem;
+          max-width: 1000px;
+          margin: 0 auto;
+          width: 100%;
+        }
+
+        .results-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-end;
+          margin-bottom: 40px;
+        }
+
+        .results-title { font-size: 2rem; font-weight: 700; margin: 0 0 5px 0; }
+        
+        .secondary-btn {
+          background: rgba(255,255,255,0.1);
+          border: none;
+          color: white;
+          padding: 10px 20px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-weight: 600;
+          font-size: 0.9rem;
+        }
+
+        .grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+          gap: 20px;
+        }
+
+        .card {
+          padding: 24px;
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+        }
+
+        .card-header { display: flex; justify-content: space-between; margin-bottom: 15px; }
+        
+        .match-badge {
+          background: rgba(34, 197, 94, 0.1);
+          color: #4ade80;
+          font-size: 0.7rem;
+          font-weight: 800;
+          padding: 4px 8px;
+          border-radius: 6px;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .card-title { font-size: 1.1rem; line-height: 1.5; margin-bottom: 20px; flex: 1; }
+        
+        .card-meta { display: flex; gap: 15px; margin-bottom: 20px; }
+        .meta-item { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text-muted); }
+
+        .card-footer { border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px; }
+        
+        .reply-btn {
+          width: 100%;
+          background: rgba(255,255,255,0.05);
+          border: none;
+          color: white;
+          padding: 10px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-weight: 600;
+          font-size: 0.9rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          transition: background 0.2s;
+        }
+        .reply-btn:hover { background: rgba(255,255,255,0.1); }
+
+        .paywall {
+          grid-column: 1 / -1;
+          padding: 60px;
+          text-align: center;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          border: 1px dashed rgba(234, 88, 12, 0.5);
+          margin-top: 20px;
+        }
+
+        .lock-icon {
+          background: rgba(234, 88, 12, 0.1);
+          padding: 16px;
+          border-radius: 50%;
+          color: var(--primary);
+          margin-bottom: 20px;
+        }
+
+        .upgrade-btn {
+          border: none;
+          color: white;
+          padding: 16px 32px;
+          border-radius: 12px;
+          font-size: 1.1rem;
+          font-weight: 700;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        
-        /* Scrollbar */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #1e293b; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        /* --- MOBILE RESPONSIVENESS --- */
+        @media (max-width: 768px) {
+          .heading { font-size: 2.5rem; }
+          .subheading { font-size: 1rem; }
+          .nav { padding: 1rem; }
+          .nav-links { display: none; } /* Hide links on mobile for cleaner look */
+          .hero { padding: 1rem; }
+          .search-footer { flex-direction: column; gap: 15px; }
+          .search-btn { width: 100%; justify-content: center; }
+          .results-container { padding: 2rem 1rem; }
+          .results-header { flex-direction: column; align-items: flex-start; gap: 15px; }
+          .paywall { padding: 30px 15px; }
+          .grid { grid-template-columns: 1fr; }
+        }
       `}</style>
 
       {/* NAVBAR */}
-      <nav style={styles.nav}>
-        <div style={styles.logo}>
-            <div style={styles.logoIcon}><Zap size={20} fill="white" stroke="none"/></div>
-            <span style={{fontWeight: 800, fontSize: '1.25rem', letterSpacing: '-0.5px'}}>Lead<span style={{color: '#ea580c'}}>Sniper</span></span>
+      <nav className="nav">
+        <div className="logo">
+            <div className="logo-icon"><Zap size={20} fill="white" stroke="none"/></div>
+            <span>Lead<span style={{color: '#ea580c'}}>Sniper</span></span>
         </div>
-        <div style={styles.navLinks}>
-            <span style={styles.navLink}>Features</span>
-            <span style={styles.navLink}>Pricing</span>
-            <span style={styles.navLink}>Login</span>
+        <div className="nav-links">
+            <span className="nav-link">Features</span>
+            <span className="nav-link">Pricing</span>
+            <span className="nav-link">Login</span>
         </div>
       </nav>
 
       {/* HERO SECTION */}
       {step === 'input' && (
-        <div style={styles.hero}>
-          <div style={styles.heroContent}>
-            <div style={styles.badge}>✨ AI-Powered Lead Generation</div>
-            <h1 style={styles.heading}>
+        <div className="hero">
+          <div className="hero-content">
+            <div className="badge">✨ AI-Powered Lead Generation</div>
+            <h1 className="heading">
               Stop searching.<br />
               Start <span className="gradient-text">closing.</span>
             </h1>
-            <p style={styles.subheading}>
+            <p className="subheading">
               Describe your product. Our AI scans millions of Reddit conversations to find people actively looking for a solution like yours.
             </p>
 
-            <div className="glass-panel" style={styles.searchContainer}>
+            <div className="glass-panel search-container">
                 <textarea 
-                  style={styles.textarea}
+                  className="textarea"
                   placeholder="e.g. I sell a CRM for freelance photographers..."
                   value={productDesc}
                   onChange={(e) => setProductDesc(e.target.value)}
                 />
-                <div style={styles.searchFooter}>
-                    <div style={styles.scans}>
+                <div className="search-footer">
+                    <div className="scans">
                         <TrendingUp size={16} color="#94a3b8" />
                         <span>Scans r/SaaS, r/Entrepreneur + 50 more</span>
                     </div>
                     <button 
                       onClick={handleSearch} 
                       disabled={!productDesc.trim() || isLoading} 
-                      className="primary-btn"
-                      style={styles.searchBtn}
+                      className="primary-btn search-btn"
                     >
                       {isLoading ? <Loader2 className="spin" size={20}/> : "Find Leads Now"}
                     </button>
                 </div>
             </div>
             
-            <div style={styles.socialProof}>
-                <div style={styles.avatars}>
-                    {[1,2,3].map(i => <div key={i} style={{...styles.avatar, left: (i-1)*-10}} />)}
+            <div className="social-proof">
+                <div style={{display: 'flex', position: 'relative', width: 80}}>
+                    {[1,2,3].map(i => (
+                      <div key={i} style={{
+                        width: 32, height: 32, borderRadius: '50%', 
+                        background: '#334155', border: '2px solid #0f172a', 
+                        position: 'relative', left: (i-1)*-10
+                      }} />
+                    ))}
                 </div>
                 <span>Trusted by 1,200+ founders</span>
             </div>
@@ -169,15 +512,15 @@ export default function App() {
 
       {/* TERMINAL VIEW */}
       {step === 'processing' && (
-        <div style={styles.centerContainer}>
-           <div className="glass-panel" style={styles.terminal}>
-              <div style={styles.terminalHeader}>
-                <div style={styles.dots}><div style={styles.dotRed}/><div style={styles.dotYellow}/><div style={styles.dotGreen}/></div>
-                <div style={styles.terminalTitle}>Agent-001 (Scanning)</div>
+        <div className="center-container">
+           <div className="glass-panel terminal">
+              <div className="terminal-header">
+                <div className="dots"><div className="dot red"/><div className="dot yellow"/><div className="dot green"/></div>
+                <div style={{fontSize: '0.8rem', color: '#64748b', fontFamily: 'monospace'}}>Agent-001 (Scanning)</div>
               </div>
-              <div style={styles.terminalBody}>
+              <div className="terminal-body">
                 {logs.map((log, i) => (
-                  <div key={i} style={styles.logEntry}>
+                  <div key={i} className="log-entry">
                     <span style={{color: '#ea580c', marginRight: 10}}>➜</span> {log}
                   </div>
                 ))}
@@ -190,34 +533,34 @@ export default function App() {
 
       {/* RESULTS VIEW */}
       {step === 'results' && (
-        <div style={styles.resultsContainer}>
-          <div style={styles.resultsHeader}>
+        <div className="results-container">
+          <div className="results-header">
             <div>
-                <h2 style={styles.resultsTitle}>Targeted Leads Found</h2>
+                <h2 className="results-title">Targeted Leads Found</h2>
                 <p style={{color: '#94a3b8'}}>We found {leads.length} people talking about this right now.</p>
             </div>
-            <button onClick={() => setStep('input')} style={styles.secondaryBtn}>New Search</button>
+            <button onClick={() => setStep('input')} className="secondary-btn">New Search</button>
           </div>
 
-          <div style={styles.grid}>
+          <div className="grid">
             {visibleLeads.map((lead) => (
-              <div key={lead.id} className="glass-panel" style={styles.card}>
-                <div style={styles.cardHeader}>
-                  <div style={styles.matchBadge}>
+              <div key={lead.id} className="glass-panel card">
+                <div className="card-header">
+                  <div className="match-badge">
                     <Zap size={12} fill="currentColor" /> {lead.score}% MATCH
                   </div>
-                  <span style={styles.timeAgo}>Just now</span>
+                  <span style={{fontSize: '0.8rem', color: '#64748b'}}>Just now</span>
                 </div>
                 
-                <h3 style={styles.cardTitle}>{lead.text}</h3>
+                <h3 className="card-title">{lead.text}</h3>
                 
-                <div style={styles.cardMeta}>
-                    <div style={styles.metaItem}><Users size={14}/> Reddit User</div>
-                    <div style={styles.metaItem}><MessageCircle size={14}/> High Intent</div>
+                <div className="card-meta">
+                    <div className="meta-item"><Users size={14}/> Reddit User</div>
+                    <div className="meta-item"><MessageCircle size={14}/> High Intent</div>
                 </div>
 
-                <div style={styles.cardFooter}>
-                  <button style={styles.replyBtn}>
+                <div className="card-footer">
+                  <button className="reply-btn">
                     View Discussion <ArrowRight size={16}/>
                   </button>
                 </div>
@@ -226,14 +569,14 @@ export default function App() {
 
             {/* PAYWALL CARD */}
             {!isPro && (
-                <div className="glass-panel" style={styles.paywall}>
-                    <div style={styles.lockIcon}><Lock size={40} /></div>
+                <div className="glass-panel paywall">
+                    <div className="lock-icon"><Lock size={40} /></div>
                     <h3 style={{fontSize: '1.5rem', fontWeight: 800, marginBottom: 10}}>Unlock {leads.length - 3} More Leads</h3>
                     <p style={{color: '#94a3b8', marginBottom: 20, maxWidth: 400}}>
                         Upgrade to Pro to see the full list of high-intent buyers, export to CSV, and get daily alerts.
                     </p>
                     <a href={PAYU_LINK} target="_blank" rel="noreferrer" style={{textDecoration: 'none'}}>
-                        <button className="primary-btn" style={styles.upgradeBtn}>
+                        <button className="primary-btn upgrade-btn">
                             Unlock Everything - ₹399 <Star size={18} fill="white" stroke="none" />
                         </button>
                     </a>
@@ -246,60 +589,3 @@ export default function App() {
     </div>
   );
 }
-
-// --- MODERN DARK THEME STYLES ---
-const styles = {
-  page: { minHeight: '100vh', display: 'flex', flexDirection: 'column' },
-  nav: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem 2rem', maxWidth: 1200, margin: '0 auto', width: '100%', boxSizing: 'border-box' },
-  logo: { display: 'flex', alignItems: 'center', gap: 12 },
-  logoIcon: { background: '#ea580c', width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  navLinks: { display: 'flex', gap: 30, fontSize: '0.9rem', color: '#94a3b8', fontWeight: 500 },
-  navLink: { cursor: 'pointer', transition: 'color 0.2s' },
-  
-  hero: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' },
-  heroContent: { maxWidth: 800, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' },
-  badge: { background: 'rgba(234, 88, 12, 0.1)', color: '#ea580c', padding: '6px 16px', borderRadius: 20, fontSize: '0.85rem', fontWeight: 600, marginBottom: 20, border: '1px solid rgba(234, 88, 12, 0.2)' },
-  heading: { fontSize: '4rem', lineHeight: 1.1, marginBottom: 20, fontWeight: 800, letterSpacing: '-1px' },
-  subheading: { fontSize: '1.25rem', color: '#94a3b8', marginBottom: 40, maxWidth: 600, lineHeight: 1.6 },
-  
-  searchContainer: { width: '100%', padding: 8, borderRadius: 16, display: 'flex', flexDirection: 'column' },
-  textarea: { width: '100%', background: 'transparent', border: 'none', color: 'white', fontSize: '1.1rem', padding: '20px', minHeight: 100, outline: 'none', resize: 'none', fontFamily: 'inherit' },
-  searchFooter: { borderTop: '1px solid rgba(255,255,255,0.1)', padding: '10px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  scans: { display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.9rem', color: '#64748b' },
-  searchBtn: { border: 'none', color: 'white', padding: '12px 24px', borderRadius: 10, fontSize: '1rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 },
-  
-  socialProof: { marginTop: 40, display: 'flex', alignItems: 'center', gap: 15, color: '#64748b', fontSize: '0.9rem' },
-  avatars: { display: 'flex', position: 'relative', width: 80 },
-  avatar: { width: 32, height: 32, borderRadius: '50%', background: '#334155', border: '2px solid #0f172a', position: 'relative' },
-
-  centerContainer: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 },
-  terminal: { width: '100%', maxWidth: 600, borderRadius: 12, overflow: 'hidden' },
-  terminalHeader: { background: 'rgba(0,0,0,0.3)', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  dots: { display: 'flex', gap: 6 },
-  dotRed: { width: 10, height: 10, borderRadius: '50%', background: '#ef4444' },
-  dotYellow: { width: 10, height: 10, borderRadius: '50%', background: '#eab308' },
-  dotGreen: { width: 10, height: 10, borderRadius: '50%', background: '#22c55e' },
-  terminalTitle: { fontSize: '0.8rem', color: '#64748b', fontFamily: 'monospace' },
-  terminalBody: { padding: 20, height: 300, overflowY: 'auto', fontFamily: 'monospace', fontSize: '0.9rem', color: '#e2e8f0' },
-  logEntry: { marginBottom: 8, display: 'flex', alignItems: 'flex-start' },
-
-  resultsContainer: { padding: '4rem 2rem', maxWidth: 1000, margin: '0 auto', width: '100%', boxSizing: 'border-box' },
-  resultsHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 40 },
-  resultsTitle: { fontSize: '2rem', fontWeight: 700, marginBottom: 5 },
-  secondaryBtn: { background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' },
-  
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 },
-  card: { padding: 24, borderRadius: 16, display: 'flex', flexDirection: 'column', height: '100%', boxSizing: 'border-box' },
-  cardHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: 15 },
-  matchBadge: { background: 'rgba(34, 197, 94, 0.1)', color: '#4ade80', fontSize: '0.7rem', fontWeight: 800, padding: '4px 8px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 4 },
-  timeAgo: { fontSize: '0.8rem', color: '#64748b' },
-  cardTitle: { fontSize: '1.1rem', lineHeight: 1.5, marginBottom: 20, flex: 1 },
-  cardMeta: { display: 'flex', gap: 15, marginBottom: 20 },
-  metaItem: { display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', color: '#94a3b8' },
-  cardFooter: { borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20 },
-  replyBtn: { width: '100%', background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', padding: '10px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'background 0.2s' },
-
-  paywall: { gridColumn: '1 / -1', padding: 60, borderRadius: 24, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', border: '1px dashed rgba(234, 88, 12, 0.5)', marginTop: 20 },
-  lockIcon: { background: 'rgba(234, 88, 12, 0.1)', padding: 16, borderRadius: '50%', color: '#ea580c', marginBottom: 20 },
-  upgradeBtn: { border: 'none', color: 'white', padding: '16px 32px', borderRadius: 12, fontSize: '1.1rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }
-};
