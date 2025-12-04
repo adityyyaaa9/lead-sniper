@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Zap, CheckCircle, ArrowRight, Loader2, Lock, Star } from 'lucide-react';
+import { Search, Zap, CheckCircle, ArrowRight, Loader2, Lock, Star, TrendingUp, Users, MessageCircle, Menu } from 'lucide-react';
 
 export default function App() {
   const [step, setStep] = useState('input'); 
@@ -29,7 +29,21 @@ export default function App() {
     setLogs([]);
     setLeads([]);
 
-    addLog("Initializing search agent...");
+    const loadingMessages = [
+      "Connecting to Reddit API...",
+      "Scanning subreddits for keywords...",
+      "Analyzing user sentiment...",
+      "Filtering for high intent...",
+      "Compiling results..."
+    ];
+
+    let msgIndex = 0;
+    const interval = setInterval(() => {
+      if (msgIndex < loadingMessages.length) {
+        addLog(loadingMessages[msgIndex]);
+        msgIndex++;
+      }
+    }, 800);
     
     try {
       const response = await fetch('https://lead-sniper.onrender.com/api/search', {
@@ -39,191 +53,544 @@ export default function App() {
       });
 
       const data = await response.json();
+      clearInterval(interval);
 
       if (data.success) {
-        addLog("Connected to Reddit API...");
+        addLog("✅ Analysis Complete.");
         setTimeout(() => {
-             addLog(`Found ${data.data.length} leads.`);
              setLeads(data.data);
              setStep('results');
              setIsLoading(false);
-        }, 1500);
+        }, 1000);
       } 
 
     } catch (error) {
+      clearInterval(interval);
       console.error(error);
       addLog("⚠️ Error: Backend issue. Retrying...");
       setIsLoading(false);
     }
   };
 
-  const visibleLeads = isPro ? leads : leads.slice(0, 2);
+  const visibleLeads = isPro ? leads : leads.slice(0, 3);
 
   return (
-    <div style={styles.appContainer}>
+    <div className="page">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
-        body { margin: 0; font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #0f172a; }
-        textarea:focus { outline: none; border-color: #ea580c; }
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+        
+        /* --- GLOBAL RESETS --- */
+        :root {
+          --primary: #ea580c;
+          --primary-dark: #c2410c;
+          --bg-dark: #0f172a;
+          --glass-bg: rgba(255, 255, 255, 0.03);
+          --glass-border: rgba(255, 255, 255, 0.1);
+          --text-muted: #94a3b8;
+        }
+
+        * { box-sizing: border-box; }
+
+        body { 
+          margin: 0; 
+          font-family: 'Plus Jakarta Sans', sans-serif; 
+          background-color: var(--bg-dark); 
+          color: white; 
+          overflow-x: hidden; /* Prevent horizontal scroll on mobile */
+        }
+
+        .page { 
+          min-height: 100vh; 
+          display: flex; 
+          flex-direction: column; 
+          width: 100%;
+          align-items: center; /* Center content horizontally */
+        }
+
+        /* --- NAVBAR --- */
+        .nav {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 1.5rem 2rem;
+          width: 100%;
+          max-width: 1200px; /* Limit width on large screens */
+          margin: 0 auto;
+        }
+
+        .logo {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          font-weight: 800;
+          font-size: 1.25rem;
+          letter-spacing: -0.5px;
+        }
+
+        .logo-icon {
+          background: var(--primary);
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .nav-links {
+          display: flex;
+          gap: 30px;
+          font-size: 0.9rem;
+          color: var(--text-muted);
+          font-weight: 600;
+        }
+
+        .nav-link { cursor: pointer; transition: color 0.2s; }
+        .nav-link:hover { color: white; }
+
+        /* --- HERO SECTION --- */
+        .hero {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 2rem;
+          width: 100%;
+          max-width: 1200px; /* Limit width on large screens */
+          margin: 0 auto;
+        }
+
+        .hero-content {
+          max-width: 800px;
+          width: 100%;
+          text-align: center;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+
+        .badge {
+          background: rgba(234, 88, 12, 0.1);
+          color: var(--primary);
+          padding: 6px 16px;
+          border-radius: 20px;
+          font-size: 0.85rem;
+          font-weight: 600;
+          margin-bottom: 20px;
+          border: 1px solid rgba(234, 88, 12, 0.2);
+          display: inline-block;
+        }
+
+        .heading {
+          font-size: 4rem;
+          line-height: 1.1;
+          margin-bottom: 20px;
+          font-weight: 800;
+          letter-spacing: -1px;
+        }
+
+        .gradient-text {
+          background: linear-gradient(to right, #fbbf24, #ea580c);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+        }
+
+        .subheading {
+          font-size: 1.25rem;
+          color: var(--text-muted);
+          margin-bottom: 40px;
+          max-width: 600px;
+          line-height: 1.6;
+        }
+
+        /* --- SEARCH BOX --- */
+        .glass-panel {
+          background: var(--glass-bg);
+          backdrop-filter: blur(10px);
+          border: 1px solid var(--glass-border);
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+          border-radius: 16px;
+          width: 100%;
+        }
+
+        .search-container {
+          padding: 8px;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .textarea {
+          width: 100%;
+          background: transparent;
+          border: none;
+          color: white;
+          font-size: 1.1rem;
+          padding: 20px;
+          min-height: 100px;
+          outline: none;
+          resize: none;
+          font-family: inherit;
+        }
+
+        .search-footer {
+          border-top: 1px solid rgba(255,255,255,0.1);
+          padding: 10px 20px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .scans {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 0.9rem;
+          color: var(--text-muted);
+        }
+
+        .primary-btn {
+          background: linear-gradient(to right, var(--primary), var(--primary-dark));
+          border: none;
+          color: white;
+          padding: 12px 24px;
+          border-radius: 10px;
+          font-size: 1rem;
+          font-weight: 700;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          transition: transform 0.2s;
+          white-space: nowrap;
+        }
+
+        .primary-btn:hover { transform: translateY(-2px); }
+        .primary-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+
+        .social-proof {
+          margin-top: 40px;
+          display: flex;
+          align-items: center;
+          gap: 15px;
+          color: var(--text-muted);
+          font-size: 0.9rem;
+        }
+
+        /* --- TERMINAL --- */
+        .center-container {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          width: 100%;
+          max-width: 1200px; /* Limit width */
+          margin: 0 auto;
+        }
+
+        .terminal {
+          width: 100%;
+          max-width: 600px;
+          border-radius: 12px;
+          overflow: hidden;
+        }
+
+        .terminal-header {
+          background: rgba(0,0,0,0.3);
+          padding: 12px 20px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .dots { display: flex; gap: 6px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; }
+        .red { background: #ef4444; } .yellow { background: #eab308; } .green { background: #22c55e; }
+
+        .terminal-body {
+          padding: 20px;
+          height: 300px;
+          overflow-y: auto;
+          font-family: monospace;
+          font-size: 0.9rem;
+          color: #e2e8f0;
+          text-align: left;
+        }
+
+        .log-entry { margin-bottom: 8px; display: flex; align-items: flex-start; }
+
+        /* --- RESULTS --- */
+        .results-container {
+          padding: 4rem 2rem;
+          max-width: 1000px;
+          margin: 0 auto;
+          width: 100%;
+        }
+
+        .results-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-end;
+          margin-bottom: 40px;
+        }
+
+        .results-title { font-size: 2rem; font-weight: 700; margin: 0 0 5px 0; }
+        
+        .secondary-btn {
+          background: rgba(255,255,255,0.1);
+          border: none;
+          color: white;
+          padding: 10px 20px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-weight: 600;
+          font-size: 0.9rem;
+        }
+
+        .grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+          gap: 20px;
+        }
+
+        .card {
+          padding: 24px;
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+        }
+
+        .card-header { display: flex; justify-content: space-between; margin-bottom: 15px; }
+        
+        .match-badge {
+          background: rgba(34, 197, 94, 0.1);
+          color: #4ade80;
+          font-size: 0.7rem;
+          font-weight: 800;
+          padding: 4px 8px;
+          border-radius: 6px;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .card-title { font-size: 1.1rem; line-height: 1.5; margin-bottom: 20px; flex: 1; }
+        
+        .card-meta { display: flex; gap: 15px; margin-bottom: 20px; }
+        .meta-item { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text-muted); }
+
+        .card-footer { border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px; }
+        
+        .reply-btn {
+          width: 100%;
+          background: rgba(255,255,255,0.05);
+          border: none;
+          color: white;
+          padding: 10px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-weight: 600;
+          font-size: 0.9rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          transition: background 0.2s;
+        }
+        .reply-btn:hover { background: rgba(255,255,255,0.1); }
+
+        .paywall {
+          grid-column: 1 / -1;
+          padding: 60px;
+          text-align: center;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          border: 1px dashed rgba(234, 88, 12, 0.5);
+          margin-top: 20px;
+        }
+
+        .lock-icon {
+          background: rgba(234, 88, 12, 0.1);
+          padding: 16px;
+          border-radius: 50%;
+          color: var(--primary);
+          margin-bottom: 20px;
+        }
+
+        .upgrade-btn {
+          border: none;
+          color: white;
+          padding: 16px 32px;
+          border-radius: 12px;
+          font-size: 1.1rem;
+          font-weight: 700;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
         /* --- MOBILE OPTIMIZATION --- */
         @media (max-width: 768px) {
-          .mobile-title { font-size: 2rem !important; }
-          .mobile-sub { font-size: 1rem !important; }
-          .mobile-container { padding: 2rem 1rem !important; }
-          .mobile-header { padding: 1rem !important; }
+          .heading { font-size: 2.5rem; }
+          .subheading { font-size: 1rem; }
+          .nav { padding: 1rem; }
+          .nav-links { display: none; } /* Hide links on mobile for cleaner look */
+          .hero { padding: 1rem; }
+          .search-footer { flex-direction: column; gap: 15px; }
+          .search-btn { width: 100%; justify-content: center; }
+          .results-container { padding: 2rem 1rem; }
+          .results-header { flex-direction: column; align-items: flex-start; gap: 15px; }
+          .paywall { padding: 30px 15px; }
+          .grid { grid-template-columns: 1fr; }
         }
       `}</style>
 
-      {/* HEADER */}
-      <header style={styles.headerWrapper}>
-        <div className="mobile-header" style={styles.headerContent}>
-          <div style={styles.logo}>
-              <Zap size={24} color="#ea580c" fill="#ea580c" />
-              <span>Lead<span style={{color: '#ea580c'}}>Sniper</span></span>
-          </div>
-          {/* Temporary Toggle for Testing */}
-          <button onClick={() => setIsPro(!isPro)} style={styles.demoToggle}>
-              {isPro ? "Demo: Pro Active" : "Demo: Free Mode"}
-          </button>
+      {/* NAVBAR */}
+      <nav className="nav">
+        <div className="logo">
+            <div className="logo-icon"><Zap size={20} fill="white" stroke="none"/></div>
+            <span>Lead<span style={{color: '#ea580c'}}>Sniper</span></span>
         </div>
-      </header>
+        <div className="nav-links">
+            <span className="nav-link">Features</span>
+            <span className="nav-link">Pricing</span>
+            <span className="nav-link">Login</span>
+        </div>
+      </nav>
 
-      <main className="mobile-container" style={styles.mainContent}>
-        
-        {/* INPUT */}
-        {step === 'input' && (
-          <div style={styles.inputSection}>
-            <h1 className="mobile-title" style={styles.title}>Find Customers <span style={{color: '#ea580c'}}>Instantly.</span></h1>
-            <p className="mobile-sub" style={styles.subtitle}>Describe your product. AI will find people asking for it.</p>
-            <div style={styles.searchBox}>
+      {/* HERO SECTION */}
+      {step === 'input' && (
+        <div className="hero">
+          <div className="hero-content">
+            <div className="badge">✨ AI-Powered Lead Generation</div>
+            <h1 className="heading">
+              Stop searching.<br />
+              Start <span className="gradient-text">closing.</span>
+            </h1>
+            <p className="subheading">
+              Describe your product. Our AI scans millions of Reddit conversations to find people actively looking for a solution like yours.
+            </p>
+
+            <div className="glass-panel search-container">
                 <textarea 
-                  style={styles.textarea}
-                  placeholder="e.g. I have a tool that helps people write better cold emails..."
+                  className="textarea"
+                  placeholder="e.g. I sell a CRM for freelance photographers..."
                   value={productDesc}
                   onChange={(e) => setProductDesc(e.target.value)}
                 />
-                <button onClick={handleSearch} disabled={!productDesc.trim() || isLoading} style={styles.button}>
-                  {isLoading ? <Loader2 className="spin" /> : <Search size={18} />}
-                  Find Leads
-                </button>
-            </div>
-          </div>
-        )}
-
-        {/* PROCESSING */}
-        {step === 'processing' && (
-          <div style={styles.terminalSection}>
-             <div style={styles.terminalWindow}>
-                <div style={styles.terminalHeader}>
-                  <div style={{...styles.dot, background: '#ef4444'}}></div>
-                  <div style={{...styles.dot, background: '#eab308'}}></div>
-                  <div style={{...styles.dot, background: '#22c55e'}}></div>
-                  <span style={{marginLeft: 10, fontSize: '0.8rem', color: '#94a3b8'}}>System Activity</span>
-                </div>
-                <div style={styles.terminalBody}>
-                  {logs.map((log, i) => (
-                    <div key={i} style={{marginBottom: 5}}>
-                      <span style={{opacity: 0.5}}>{`>`}</span> {log}
+                <div className="search-footer">
+                    <div className="scans">
+                        <TrendingUp size={16} color="#94a3b8" />
+                        <span>Scans r/SaaS, r/Entrepreneur + 50 more</span>
                     </div>
-                  ))}
-                  <div ref={logEndRef}></div>
+                    <button 
+                      onClick={handleSearch} 
+                      disabled={!productDesc.trim() || isLoading} 
+                      className="primary-btn search-btn"
+                    >
+                      {isLoading ? <Loader2 className="spin" size={20}/> : "Find Leads Now"}
+                    </button>
                 </div>
-             </div>
-          </div>
-        )}
-
-        {/* RESULTS */}
-        {step === 'results' && (
-          <div style={styles.resultsSection}>
-            <div style={styles.resultsHeader}>
-              <h2 style={{display: 'flex', alignItems: 'center', gap: 10, fontSize: '1.5rem'}}>
-                <CheckCircle color="#22c55e" /> Found {leads.length} Leads
-              </h2>
-              <button onClick={() => setStep('input')} style={styles.btnSecondary}>New Search</button>
             </div>
-
-            <div style={styles.leadsList}>
-              {visibleLeads.map((lead) => (
-                <div key={lead.id} style={styles.leadCard}>
-                  <div style={styles.leadHeader}>
-                    <span style={styles.badgeScore}>⚡ {lead.score}% Match</span>
-                  </div>
-                  <h3 style={{margin: '10px 0', fontSize: '1.1rem'}}>{lead.text}</h3>
-                  <div style={styles.leadFooter}>
-                    <button style={styles.actionBtn}>Reply on Reddit <ArrowRight size={14}/></button>
-                  </div>
+            
+            <div className="social-proof">
+                <div style={{display: 'flex', position: 'relative', width: 80}}>
+                    {[1,2,3].map(i => (
+                      <div key={i} style={{
+                        width: 32, height: 32, borderRadius: '50%', 
+                        background: '#334155', border: '2px solid #0f172a', 
+                        position: 'relative', left: (i-1)*-10
+                      }} />
+                    ))}
                 </div>
-              ))}
+                <span>Trusted by 1,200+ founders</span>
+            </div>
+          </div>
+        </div>
+      )}
 
-              {!isPro && (
-                  <div style={styles.paywallCard}>
-                      <Lock size={48} color="#ea580c" style={{marginBottom: 15}} />
-                      <h3 style={{margin: 0}}>Unlock {leads.length - 2} more leads</h3>
-                      <p style={{color: '#64748b'}}>Upgrade to Pro to see all high-intent customers.</p>
-                      <a href={PAYU_LINK} target="_blank" rel="noreferrer" style={{textDecoration: 'none'}}>
-                        <button style={styles.upgradeBtn}>
-                            Unlock Now for ₹399 <Star size={16} fill="white" />
+      {/* TERMINAL VIEW */}
+      {step === 'processing' && (
+        <div className="center-container">
+           <div className="glass-panel terminal">
+              <div className="terminal-header">
+                <div className="dots"><div className="dot red"/><div className="dot yellow"/><div className="dot green"/></div>
+                <div style={{fontSize: '0.8rem', color: '#64748b', fontFamily: 'monospace'}}>Agent-001 (Scanning)</div>
+              </div>
+              <div className="terminal-body">
+                {logs.map((log, i) => (
+                  <div key={i} className="log-entry">
+                    <span style={{color: '#ea580c', marginRight: 10}}>➜</span> {log}
+                  </div>
+                ))}
+                <div ref={logEndRef}></div>
+              </div>
+           </div>
+           <p style={{marginTop: 20, color: '#94a3b8', fontSize: '0.9rem'}}>This might take a few seconds...</p>
+        </div>
+      )}
+
+      {/* RESULTS VIEW */}
+      {step === 'results' && (
+        <div className="results-container">
+          <div className="results-header">
+            <div>
+                <h2 className="results-title">Targeted Leads Found</h2>
+                <p style={{color: '#94a3b8'}}>We found {leads.length} people talking about this right now.</p>
+            </div>
+            <button onClick={() => setStep('input')} className="secondary-btn">New Search</button>
+          </div>
+
+          <div className="grid">
+            {visibleLeads.map((lead) => (
+              <div key={lead.id} className="glass-panel card">
+                <div className="card-header">
+                  <div className="match-badge">
+                    <Zap size={12} fill="currentColor" /> {lead.score}% MATCH
+                  </div>
+                  <span style={{fontSize: '0.8rem', color: '#64748b'}}>Just now</span>
+                </div>
+                
+                <h3 className="card-title">{lead.text}</h3>
+                
+                <div className="card-meta">
+                    <div className="meta-item"><Users size={14}/> Reddit User</div>
+                    <div className="meta-item"><MessageCircle size={14}/> High Intent</div>
+                </div>
+
+                <div className="card-footer">
+                  <button className="reply-btn">
+                    View Discussion <ArrowRight size={16}/>
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {/* PAYWALL CARD */}
+            {!isPro && (
+                <div className="glass-panel paywall">
+                    <div className="lock-icon"><Lock size={40} /></div>
+                    <h3 style={{fontSize: '1.5rem', fontWeight: 800, marginBottom: 10}}>Unlock {leads.length - 3} More Leads</h3>
+                    <p style={{color: '#94a3b8', marginBottom: 20, maxWidth: 400}}>
+                        Upgrade to Pro to see the full list of high-intent buyers, export to CSV, and get daily alerts.
+                    </p>
+                    <a href={PAYU_LINK} target="_blank" rel="noreferrer" style={{textDecoration: 'none'}}>
+                        <button className="primary-btn upgrade-btn">
+                            Unlock Everything - ₹399 <Star size={18} fill="white" stroke="none" />
                         </button>
-                      </a>
-                  </div>
-              )}
-            </div>
+                    </a>
+                    <p style={{fontSize: '0.8rem', color: '#64748b', marginTop: 15}}>One-time payment. Instant access.</p>
+                </div>
+            )}
           </div>
-        )}
-      </main>
+        </div>
+      )}
     </div>
   );
 }
-
-const styles = {
-  appContainer: { 
-    minHeight: '100vh', 
-    display: 'flex', 
-    flexDirection: 'column',
-    alignItems: 'center' // Fix: Centers everything on PC
-  },
-  headerWrapper: { 
-    background: 'white', 
-    borderBottom: '1px solid #e2e8f0', 
-    width: '100%', 
-    display: 'flex', 
-    justifyContent: 'center' 
-  },
-  headerContent: {
-    width: '100%',
-    maxWidth: '1000px', // Fix: Limits width so it doesn't stretch too far
-    padding: '1rem 2rem',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center'
-  },
-  logo: { display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '800', fontSize: '1.25rem' },
-  mainContent: { 
-    width: '100%', 
-    maxWidth: '800px', // Fix: Keeps content in the middle on PC
-    margin: '0 auto', 
-    padding: '4rem 1rem' 
-  },
-  inputSection: { textAlign: 'center' },
-  title: { fontSize: '3rem', marginBottom: '1rem', fontWeight: 800 },
-  subtitle: { color: '#64748b', fontSize: '1.2rem', marginBottom: '3rem' },
-  searchBox: { background: 'white', padding: '1.5rem', borderRadius: '1rem', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', border: '1px solid #e2e8f0' },
-  textarea: { width: '100%', height: '120px', border: '2px solid #e2e8f0', borderRadius: '0.5rem', padding: '1rem', fontSize: '1rem', resize: 'none', marginBottom: '1rem', fontFamily: 'inherit', boxSizing: 'border-box' },
-  button: { background: '#ea580c', color: 'white', border: 'none', padding: '0.75rem 1.5rem', borderRadius: '0.5rem', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '1rem', width: '100%' },
-  terminalWindow: { background: '#0f172a', borderRadius: '0.75rem', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)' },
-  terminalHeader: { background: '#1e293b', padding: '0.75rem', display: 'flex', alignItems: 'center', gap: '8px' },
-  dot: { width: '12px', height: '12px', borderRadius: '50%' },
-  terminalBody: { padding: '1.5rem', height: '300px', color: '#4ade80', fontFamily: 'monospace', overflowY: 'auto', textAlign: 'left' },
-  resultsHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' },
-  btnSecondary: { background: 'white', color: '#64748b', border: '1px solid #e2e8f0', padding: '0.5rem 1rem', borderRadius: '0.5rem', cursor: 'pointer' },
-  leadCard: { background: 'white', border: '1px solid #e2e8f0', padding: '1.5rem', borderRadius: '0.75rem', marginBottom: '1rem' },
-  badgeScore: { background: '#dcfce7', color: '#166534', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '700' },
-  leadFooter: { marginTop: '1rem', borderTop: '1px solid #f1f5f9', paddingTop: '1rem' },
-  actionBtn: { background: '#fff7ed', color: '#c2410c', border: 'none', padding: '0.5rem 1rem', fontSize: '0.875rem', fontWeight: 600, borderRadius: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 },
-  paywallCard: { background: 'linear-gradient(145deg, #fff7ed, #ffffff)', border: '2px dashed #ea580c', padding: '3rem', borderRadius: '0.75rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' },
-  upgradeBtn: { background: '#ea580c', color: 'white', border: 'none', padding: '1rem 2rem', borderRadius: '0.5rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.1rem', boxShadow: '0 10px 15px -3px rgba(234, 88, 12, 0.3)', marginTop: '1rem' },
-  demoToggle: { fontSize: '0.7rem', padding: '5px 10px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer' }
-};
