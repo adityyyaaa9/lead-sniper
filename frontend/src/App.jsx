@@ -104,6 +104,7 @@ export default function App() {
           display: flex; 
           flex-direction: column; 
           width: 100%;
+          align-items: center; /* Center content horizontally */
         }
 
         /* --- NAVBAR --- */
@@ -113,7 +114,7 @@ export default function App() {
           align-items: center;
           padding: 1.5rem 2rem;
           width: 100%;
-          max-width: 1200px;
+          max-width: 1200px; /* Limit width on large screens */
           margin: 0 auto;
         }
 
@@ -155,6 +156,8 @@ export default function App() {
           justify-content: center;
           padding: 2rem;
           width: 100%;
+          max-width: 1200px; /* Limit width on large screens */
+          margin: 0 auto;
         }
 
         .hero-content {
@@ -282,6 +285,8 @@ export default function App() {
           justify-content: center;
           padding: 20px;
           width: 100%;
+          max-width: 1200px; /* Limit width */
+          margin: 0 auto;
         }
 
         .terminal {
