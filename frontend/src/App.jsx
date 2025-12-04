@@ -433,6 +433,11 @@ const Dashboard = ({ payLink }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ product: productDesc }),
       });
+      
+      if (!response.ok) {
+        throw new Error(`Server Error: ${response.status}`);
+      }
+
       const data = await response.json();
       clearInterval(interval);
       if (data.success) {
@@ -445,7 +450,8 @@ const Dashboard = ({ payLink }) => {
       } 
     } catch (error) {
       clearInterval(interval);
-      addLog("⚠️ Error: Backend issue.");
+      console.error("Search API Error:", error);
+      addLog(`⚠️ Error: ${error.message || "Connection Failed"}`);
       setIsLoading(false);
     }
   };
