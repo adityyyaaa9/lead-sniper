@@ -1,130 +1,229 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, createContext, useContext } from 'react';
+import { 
+  BrowserRouter as Router, 
+  Routes, 
+  Route, 
+  useNavigate, 
+  useLocation,
+  Link,
+  Navigate
+} from 'react-router-dom';
+
 import { 
   Search, Zap, CheckCircle, ArrowRight, Loader2, Lock, Star, 
   TrendingUp, Users, MessageCircle, Menu, X, Shield, 
   CreditCard, BarChart, LogOut, ChevronDown, Mail, Phone, Key
 } from 'lucide-react';
 
-// Import Firebase Authentication
-import { auth, provider, signInWithPopup, signOut } from './firebaseConfig';
+// --- FIREBASE IMPORTS ---
+import { initializeApp } from "firebase/app";
 import { 
-  onAuthStateChanged, 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signOut, 
+  onAuthStateChanged,
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
   RecaptchaVerifier,
   signInWithPhoneNumber 
-} from 'firebase/auth';
+} from "firebase/auth";
+import { getFirestore, doc, getDoc } from "firebase/firestore";
 
-// --- MAIN APP COMPONENT ---
-export default function App() {
-  const [currentPage, setCurrentPage] = useState('home');
-  const [user, setUser] = useState(null); 
-  const [showPopup, setShowPopup] = useState(false);
+// --- 1. FIREBASE CONFIGURATION (Merged) ---
+const firebaseConfig = {
+  apiKey: "AIzaSyAuM17cw3dK6R017kesDiQHDQtgXY_GZ_4", 
+  authDomain: "lead-sniper-auth.firebaseapp.com",
+  projectId: "lead-sniper-auth",
+  storageBucket: "lead-sniper-auth.firebasestorage.app",
+  messagingSenderId: "167412952560",
+  appId: "1:167412952560:web:3c60c4f0c9742476860135"
+};
 
-  // *** YOUR PAYU LINK ***
-  const PAYU_LINK = "https://u.payu.in/PAYUMN/Hrn6dcOyl0Ic"; 
+// Initialize Services
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const provider = new GoogleAuthProvider();
 
-  // Persistent Login Check
+// --- 2. AUTH CONTEXT (Merged) ---
+const AuthContext = createContext();
+
+const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [isPro, setIsPro] = useState(false); 
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+        // CHECK DATABASE: Look for a document named after their email
+        try {
+            const docRef = doc(db, "customers", currentUser.email); 
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists() && docSnap.data().isPro === true) {
+                console.log("User is PRO member");
+                setIsPro(true);
+            } else {
+                console.log("User is FREE member");
+                setIsPro(false);
+            }
+        } catch (error) {
+            console.error("Error fetching pro status:", error);
+            setIsPro(false);
+        }
+      } else {
+        setUser(null);
+        setIsPro(false);
+      }
+      setLoading(false);
     });
-    // Popup Timer
-    const timer = setTimeout(() => setShowPopup(true), 5000);
-    return () => {
-      unsubscribe();
-      clearTimeout(timer);
-    }
+    return () => unsubscribe();
   }, []);
 
-  const navigate = (page) => {
-    window.scrollTo(0, 0);
-    setCurrentPage(page);
-  };
+  return (
+    <AuthContext.Provider value={{ user, isPro, loading }}>
+      {!loading && children}
+    </AuthContext.Provider>
+  );
+};
 
-  const handleGoogleLogin = async () => {
-    try {
-      await signInWithPopup(auth, provider);
-      navigate('dashboard');
-    } catch (error) {
-      console.error("Login Failed:", error);
-      alert("Google Login failed. Please try again.");
-    }
-  };
+const useAuth = () => useContext(AuthContext);
 
-  const handleLogout = async () => {
-    await signOut(auth);
-    setUser(null);
-    navigate('home');
-  };
+// --- 3. PROTECTED ROUTE COMPONENT (Merged) ---
+const ProtectedRoute = ({ children }) => {
+  const { user, isPro } = useAuth(); // Removed loading check here as AuthProvider handles it
+
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
+  // Optional: Uncomment strict paywall below if you want to block non-Pro users entirely
+  // if (!isPro) { return <Navigate to="/" />; }
+
+  return children;
+};
+
+// --- 4. MAIN APP COMPONENT ---
+export default function App() {
+  const PAYU_LINK = "https://u.payu.in/PAYUMN/Hrn6dcOyl0Ic"; 
 
   return (
-    <div className="page">
-      <GlobalStyles />
-      
-      {/* NAVBAR */}
-      <Navbar navigate={navigate} user={user} logout={handleLogout} currentPage={currentPage} />
+    <AuthProvider>
+      <Router>
+        <div className="page">
+          <GlobalStyles />
+          <Navbar />
+          
+          <main className="content">
+            <Routes>
+              {/* PUBLIC ROUTES */}
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/pricing" element={<PricingPage />} />
+              <Route path="/login" element={<LoginPage />} />
 
-      {/* CONTENT */}
-      <main className="content">
-        {currentPage === 'home' && <LandingPage navigate={navigate} />}
-        {currentPage === 'pricing' && <PricingPage navigate={navigate} />}
-        
-        {currentPage === 'login' && (
-          <LoginPage onGoogleLogin={handleGoogleLogin} navigate={navigate} />
-        )}
-        
-        {currentPage === 'dashboard' && (
-          user ? <Dashboard user={user} payLink={PAYU_LINK} /> : <LoginPage onGoogleLogin={handleGoogleLogin} navigate={navigate} />
-        )}
-      </main>
+              {/* PROTECTED ROUTE (THE REAL DASHBOARD) */}
+              <Route 
+                path="/dashboard" 
+                element={
+                  <ProtectedRoute>
+                    <Dashboard payLink={PAYU_LINK} />
+                  </ProtectedRoute>
+                } 
+              />
+            </Routes>
+          </main>
 
-      {/* FOOTER */}
-      <Footer />
-
-      {/* POPUP */}
-      {showPopup && currentPage === 'home' && !user && (
-        <Popup onClose={() => setShowPopup(false)} />
-      )}
-    </div>
+          <Footer />
+        </div>
+      </Router>
+    </AuthProvider>
   );
 }
 
-// --- 1. LANDING PAGE ---
-const LandingPage = ({ navigate }) => (
-  <div className="landing">
-    <section className="hero-section">
-      <div className="badge">✨ AI Sentiment Analysis 2.0</div>
-      <h1 className="hero-title">
-        Find Your Next 100 Customers <br />
-        <span className="gradient-text">On Reddit.</span>
-      </h1>
-      <p className="hero-sub">
-        Stop cold emailing. Our AI finds people actively asking for your product in real-time. 
-      </p>
-      <div className="cta-group">
-        <button onClick={() => navigate('dashboard')} className="primary-btn big-btn">
-          Start Finding Leads <ArrowRight size={20} />
-        </button>
-        <div className="social-proof">
-          <div className="avatars">
-             {[1,2,3,4].map(i => <div key={i} className="avatar" />)}
-          </div>
-          <span>Trusted by 2,400+ founders</span>
-        </div>
-      </div>
-    </section>
+// --- SHARED COMPONENTS ---
 
-    <section className="features-section">
-      <h2>Why use LeadSniper?</h2>
-      <div className="feature-grid">
-        <FeatureCard icon={<Zap/>} title="Real-Time Scanning" desc="We monitor 500+ subreddits 24/7." />
-        <FeatureCard icon={<BarChart/>} title="Intent Scoring" desc="Our AI reads context to find buyers." />
-        <FeatureCard icon={<Shield/>} title="Safe & Compliant" desc="We respect Reddit API limits." />
+const Navbar = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuth();
+  
+  const handleLogout = async () => {
+    await signOut(auth);
+    navigate('/');
+  };
+
+  return (
+    <nav className="nav">
+      <div className="logo" onClick={() => navigate('/')}>
+          <div className="logo-icon"><Zap size={20} fill="white" stroke="none"/></div>
+          <span>Lead<span style={{color: '#ea580c'}}>Sniper</span></span>
       </div>
-    </section>
-  </div>
-);
+      <div className="nav-links desktop-nav">
+          <span onClick={() => navigate('/')} className={location.pathname === '/' ? 'active' : ''}>Home</span>
+          <span onClick={() => navigate('/pricing')} className={location.pathname === '/pricing' ? 'active' : ''}>Pricing</span>
+          {user ? <span onClick={handleLogout}>Logout</span> : <span onClick={() => navigate('/login')}>Login</span>}
+      </div>
+      {user ? 
+        <button onClick={() => navigate('/dashboard')} className="primary-btn small-btn">Dashboard</button> 
+        : 
+        <button onClick={() => navigate('/login')} className="primary-btn small-btn">Get Started</button>
+      }
+    </nav>
+  );
+};
+
+// --- LANDING PAGE ---
+const LandingPage = () => {
+  const navigate = useNavigate();
+  const [showPopup, setShowPopup] = useState(false);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if(!user) {
+      const timer = setTimeout(() => setShowPopup(true), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [user]);
+
+  return (
+    <div className="landing">
+      <section className="hero-section">
+        <div className="badge">✨ AI Sentiment Analysis 2.0</div>
+        <h1 className="hero-title">
+          Find Your Next 100 Customers <br />
+          <span className="gradient-text">On Reddit.</span>
+        </h1>
+        <p className="hero-sub">
+          Stop cold emailing. Our AI finds people actively asking for your product in real-time. 
+        </p>
+        <div className="cta-group">
+          <button onClick={() => navigate('/dashboard')} className="primary-btn big-btn">
+            Start Finding Leads <ArrowRight size={20} />
+          </button>
+          <div className="social-proof">
+            <div className="avatars">
+               {[1,2,3,4].map(i => <div key={i} className="avatar" />)}
+            </div>
+            <span>Trusted by 2,400+ founders</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="features-section">
+        <h2>Why use LeadSniper?</h2>
+        <div className="feature-grid">
+          <FeatureCard icon={<Zap/>} title="Real-Time Scanning" desc="We monitor 500+ subreddits 24/7." />
+          <FeatureCard icon={<BarChart/>} title="Intent Scoring" desc="Our AI reads context to find buyers." />
+          <FeatureCard icon={<Shield/>} title="Safe & Compliant" desc="We respect Reddit API limits." />
+        </div>
+      </section>
+
+      {showPopup && !user && <Popup onClose={() => setShowPopup(false)} />}
+    </div>
+  );
+};
 
 const FeatureCard = ({ icon, title, desc }) => (
   <div className="glass-card feature-card">
@@ -134,39 +233,43 @@ const FeatureCard = ({ icon, title, desc }) => (
   </div>
 );
 
-// --- 2. PRICING PAGE ---
-const PricingPage = ({ navigate }) => (
-  <div className="pricing-section">
-    <div className="text-center">
-      <h2>Simple Pricing</h2>
-      <p>Stop paying for bad leads.</p>
-    </div>
-    <div className="pricing-grid">
-      <div className="glass-card price-card">
-        <h3>Starter</h3>
-        <div className="price">Free</div>
-        <ul>
-          <li><CheckCircle size={16}/> 3 Leads / Day</li>
-          <li><CheckCircle size={16}/> Basic Analysis</li>
-        </ul>
-        <button onClick={() => navigate('dashboard')} className="secondary-btn full-width">Get Started</button>
+// --- PRICING PAGE ---
+const PricingPage = () => {
+  const navigate = useNavigate();
+  return (
+    <div className="pricing-section">
+      <div className="text-center">
+        <h2>Simple Pricing</h2>
+        <p>Stop paying for bad leads.</p>
       </div>
-      <div className="glass-card price-card featured">
-        <div className="pop-tag">POPULAR</div>
-        <h3>Pro</h3>
-        <div className="price">₹399<span>/mo</span></div>
-        <ul>
-          <li><CheckCircle size={16}/> Unlimited Leads</li>
-          <li><CheckCircle size={16}/> Export to CSV</li>
-        </ul>
-        <button onClick={() => navigate('dashboard')} className="primary-btn full-width">Start Pro Trial</button>
+      <div className="pricing-grid">
+        <div className="glass-card price-card">
+          <h3>Starter</h3>
+          <div className="price">Free</div>
+          <ul>
+            <li><CheckCircle size={16}/> 3 Leads / Day</li>
+            <li><CheckCircle size={16}/> Basic Analysis</li>
+          </ul>
+          <button onClick={() => navigate('/dashboard')} className="secondary-btn full-width">Get Started</button>
+        </div>
+        <div className="glass-card price-card featured">
+          <div className="pop-tag">POPULAR</div>
+          <h3>Pro</h3>
+          <div className="price">₹399<span>/mo</span></div>
+          <ul>
+            <li><CheckCircle size={16}/> Unlimited Leads</li>
+            <li><CheckCircle size={16}/> Export to CSV</li>
+          </ul>
+          <button onClick={() => navigate('/dashboard')} className="primary-btn full-width">Start Pro Trial</button>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
-// --- 3. COMPLETE LOGIN PAGE (EMAIL + PHONE + GOOGLE) ---
-const LoginPage = ({ onGoogleLogin, navigate }) => {
+// --- LOGIN PAGE ---
+const LoginPage = () => {
+  const navigate = useNavigate();
   const [authMode, setAuthMode] = useState('options'); 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -175,14 +278,32 @@ const LoginPage = ({ onGoogleLogin, navigate }) => {
   const [showOtpInput, setShowOtpInput] = useState(false);
   const [confirmationResult, setConfirmationResult] = useState(null);
 
+  const handleSuccess = () => {
+    navigate('/dashboard');
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      await signInWithPopup(auth, provider);
+      handleSuccess();
+    } catch (error) {
+      console.error("Login Failed:", error);
+      alert("Google Login failed. Please try again.");
+    }
+  };
+
   const handleEmailLogin = async () => {
-    try { await signInWithEmailAndPassword(auth, email, password); } 
-    catch (error) { alert("Error: " + error.message); }
+    try { 
+      await signInWithEmailAndPassword(auth, email, password);
+      handleSuccess();
+    } catch (error) { alert("Error: " + error.message); }
   };
 
   const handleEmailSignup = async () => {
-    try { await createUserWithEmailAndPassword(auth, email, password); } 
-    catch (error) { alert("Error: " + error.message); }
+    try { 
+      await createUserWithEmailAndPassword(auth, email, password);
+      handleSuccess();
+    } catch (error) { alert("Error: " + error.message); }
   };
 
   const setupRecaptcha = () => {
@@ -208,8 +329,10 @@ const LoginPage = ({ onGoogleLogin, navigate }) => {
   };
 
   const handleVerifyOtp = async () => {
-    try { await confirmationResult.confirm(otp); } 
-    catch (error) { alert("Invalid OTP"); }
+    try { 
+      await confirmationResult.confirm(otp);
+      handleSuccess();
+    } catch (error) { alert("Invalid OTP"); }
   };
 
   return (
@@ -220,7 +343,7 @@ const LoginPage = ({ onGoogleLogin, navigate }) => {
 
         {authMode === 'options' && (
           <div className="auth-options">
-            <button onClick={onGoogleLogin} className="google-btn full-width mb-10">
+            <button onClick={handleGoogleLogin} className="google-btn full-width mb-10">
               <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" width="20" />
               Continue with Google
             </button>
@@ -275,15 +398,17 @@ const LoginPage = ({ onGoogleLogin, navigate }) => {
   );
 };
 
-// --- 4. DASHBOARD ---
-const Dashboard = ({ user, payLink }) => {
+// --- DASHBOARD (CONNECTED TO DB) ---
+const Dashboard = ({ payLink }) => {
   const [step, setStep] = useState('input'); 
   const [productDesc, setProductDesc] = useState('');
   const [logs, setLogs] = useState([]);
   const [leads, setLeads] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isPro, setIsPro] = useState(false); 
   const logEndRef = useRef(null);
+  
+  // GET REAL DATA FROM CONTEXT
+  const { user, isPro } = useAuth(); 
 
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [logs]);
 
@@ -295,7 +420,7 @@ const Dashboard = ({ user, payLink }) => {
     setIsLoading(true);
     setLogs([]);
     
-    // UI Simulation
+    // NOTE: This fetch URL is for your Python backend. Ensure that backend is running and CORS is enabled.
     const loadingMessages = ["Connecting to API...", "Scanning subreddits...", "Analyzing sentiment...", "Filtering leads...", "Finalizing..."];
     let msgIndex = 0;
     const interval = setInterval(() => {
@@ -332,8 +457,9 @@ const Dashboard = ({ user, payLink }) => {
       <div className="dash-header">
         <h2>Dashboard</h2>
         <div className="user-badge">
-            <div className="avatar-small">{user.email ? user.email[0].toUpperCase() : 'U'}</div>
-            <span className="desktop-only">{user.email || user.phoneNumber}</span>
+            <div className="avatar-small">{user?.email ? user.email[0].toUpperCase() : 'U'}</div>
+            <span className="desktop-only">{user?.email || user?.phoneNumber}</span>
+            {isPro && <span style={{marginLeft:10, background: '#22c55e', padding: '2px 8px', borderRadius: 4, fontSize: 10}}>PRO</span>}
         </div>
       </div>
 
@@ -400,23 +526,6 @@ const Dashboard = ({ user, payLink }) => {
   );
 };
 
-// --- SHARED COMPONENTS ---
-const Navbar = ({ navigate, user, logout, currentPage }) => (
-  <nav className="nav">
-    <div className="logo" onClick={() => navigate('home')}>
-        <div className="logo-icon"><Zap size={20} fill="white" stroke="none"/></div>
-        <span>Lead<span style={{color: '#ea580c'}}>Sniper</span></span>
-    </div>
-    <div className="nav-links desktop-nav">
-        <span onClick={() => navigate('home')} className={currentPage === 'home' ? 'active' : ''}>Home</span>
-        <span onClick={() => navigate('pricing')} className={currentPage === 'pricing' ? 'active' : ''}>Pricing</span>
-        {user ? <span onClick={logout}>Logout</span> : <span onClick={() => navigate('login')}>Login</span>}
-    </div>
-    {user ? <button onClick={() => navigate('dashboard')} className="primary-btn small-btn">Dashboard</button> 
-          : <button onClick={() => navigate('login')} className="primary-btn small-btn">Get Started</button>}
-  </nav>
-);
-
 const Footer = () => (
   <footer className="footer">
     <div className="footer-content">
@@ -457,6 +566,7 @@ const GlobalStyles = () => (
     .nav-links { display: flex; gap: 30px; font-size: 0.95rem; color: var(--text-muted); cursor: pointer; }
     .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.25rem; cursor: pointer; }
     .logo-icon { background: var(--primary); width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+    .active { color: white; font-weight: 600; }
 
     /* LANDING */
     .landing { text-align: center; padding: 4rem 20px; display: flex; flex-direction: column; align-items: center; }

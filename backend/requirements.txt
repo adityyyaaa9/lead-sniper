@@ -4,3 +4,4 @@ praw
 openai
 python-dotenv
 gunicorn
+firebase-admin
