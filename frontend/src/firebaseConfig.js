@@ -2,15 +2,15 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 
-// Your web app's Firebase configuration
-// REPLACE THESE VALUES WITH THE ONES FROM YOUR FIREBASE CONSOLE
+// --- PASTE YOUR REAL CONFIGURATION HERE ---
+// It should look like this (but with your numbers):
 const firebaseConfig = {
-  apiKey: "AIzaSyD...", 
+  apiKey: "AIzaSyAuM17cw3dK6R017kesDiQHDQtgXY_GZ_4", 
   authDomain: "lead-sniper-auth.firebaseapp.com",
   projectId: "lead-sniper-auth",
-  storageBucket: "lead-sniper-auth.appspot.com",
-  messagingSenderId: "12345...",
-  appId: "1:12345..."
+  storageBucket: "lead-sniper-auth.firebasestorage.app", // Fixed typo here (firebasestorage.app)
+  messagingSenderId: "167412952560",
+  appId: "1:167412952560:web:3c60c4f0c9742476860135"
 };
 
 // Initialize Firebase
