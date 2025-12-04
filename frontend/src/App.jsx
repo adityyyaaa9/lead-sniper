@@ -2,19 +2,39 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, Zap, CheckCircle, ArrowRight, Loader2, Lock, Star, 
   TrendingUp, Users, MessageCircle, Menu, X, Shield, 
-  CreditCard, BarChart, LogOut, ChevronDown, Mail
+  CreditCard, BarChart, LogOut, ChevronDown, Mail, Phone, Key
 } from 'lucide-react';
 
-// --- MAIN APP COMPONENT (ROUTER) ---
+// Import Firebase Authentication
+import { auth, provider, signInWithPopup, signOut } from './firebaseConfig';
+import { 
+  onAuthStateChanged, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword,
+  RecaptchaVerifier,
+  signInWithPhoneNumber 
+} from 'firebase/auth';
+
+// --- MAIN APP COMPONENT ---
 export default function App() {
   const [currentPage, setCurrentPage] = useState('home');
-  const [user, setUser] = useState(null); // null = not logged in
+  const [user, setUser] = useState(null); 
   const [showPopup, setShowPopup] = useState(false);
 
-  // Show "Special Offer" popup after 5 seconds
+  // *** YOUR PAYU LINK ***
+  const PAYU_LINK = "https://u.payu.in/PAYUMN/Hrn6dcOyl0Ic"; 
+
+  // Persistent Login Check
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    // Popup Timer
     const timer = setTimeout(() => setShowPopup(true), 5000);
-    return () => clearTimeout(timer);
+    return () => {
+      unsubscribe();
+      clearTimeout(timer);
+    }
   }, []);
 
   const navigate = (page) => {
@@ -22,12 +42,18 @@ export default function App() {
     setCurrentPage(page);
   };
 
-  const handleLogin = (email) => {
-    setUser({ name: "Founder", email: email, plan: "free" });
-    navigate('dashboard');
+  const handleGoogleLogin = async () => {
+    try {
+      await signInWithPopup(auth, provider);
+      navigate('dashboard');
+    } catch (error) {
+      console.error("Login Failed:", error);
+      alert("Google Login failed. Please try again.");
+    }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOut(auth);
     setUser(null);
     navigate('home');
   };
@@ -36,29 +62,28 @@ export default function App() {
     <div className="page">
       <GlobalStyles />
       
-      {/* GLOBAL NAVBAR */}
-      <Navbar 
-        navigate={navigate} 
-        user={user} 
-        logout={handleLogout} 
-        currentPage={currentPage}
-      />
+      {/* NAVBAR */}
+      <Navbar navigate={navigate} user={user} logout={handleLogout} currentPage={currentPage} />
 
-      {/* PAGE ROUTING */}
+      {/* CONTENT */}
       <main className="content">
         {currentPage === 'home' && <LandingPage navigate={navigate} />}
         {currentPage === 'pricing' && <PricingPage navigate={navigate} />}
-        {currentPage === 'login' && <LoginPage onLogin={handleLogin} />}
+        
+        {currentPage === 'login' && (
+          <LoginPage onGoogleLogin={handleGoogleLogin} navigate={navigate} />
+        )}
+        
         {currentPage === 'dashboard' && (
-          user ? <Dashboard user={user} /> : <LoginPage onLogin={handleLogin} />
+          user ? <Dashboard user={user} payLink={PAYU_LINK} /> : <LoginPage onGoogleLogin={handleGoogleLogin} navigate={navigate} />
         )}
       </main>
 
-      {/* GLOBAL FOOTER */}
-      <Footer navigate={navigate} />
+      {/* FOOTER */}
+      <Footer />
 
-      {/* MARKETING POPUP */}
-      {showPopup && currentPage === 'home' && (
+      {/* POPUP */}
+      {showPopup && currentPage === 'home' && !user && (
         <Popup onClose={() => setShowPopup(false)} />
       )}
     </div>
@@ -68,16 +93,14 @@ export default function App() {
 // --- 1. LANDING PAGE ---
 const LandingPage = ({ navigate }) => (
   <div className="landing">
-    {/* HERO */}
     <section className="hero-section">
-      <div className="badge">✨ New: AI Sentiment Analysis 2.0</div>
+      <div className="badge">✨ AI Sentiment Analysis 2.0</div>
       <h1 className="hero-title">
         Find Your Next 100 Customers <br />
         <span className="gradient-text">On Reddit.</span>
       </h1>
       <p className="hero-sub">
         Stop cold emailing. Our AI finds people actively asking for your product in real-time. 
-        Get high-intent leads delivered to your dashboard.
       </p>
       <div className="cta-group">
         <button onClick={() => navigate('dashboard')} className="primary-btn big-btn">
@@ -90,27 +113,14 @@ const LandingPage = ({ navigate }) => (
           <span>Trusted by 2,400+ founders</span>
         </div>
       </div>
-      <div className="hero-preview">
-        <div className="glass-card preview-card">
-            <div className="preview-header">
-                <div className="dots"><div className="dot red"/><div className="dot yellow"/><div className="dot green"/></div>
-            </div>
-            <div className="preview-body">
-                <div className="preview-row"><span className="green">➜</span> Scanning r/SaaS...</div>
-                <div className="preview-row"><span className="green">➜</span> Found: "Best CRM for photographers?"</div>
-                <div className="preview-row"><span className="green">➜</span> Intent Score: 98% (High)</div>
-            </div>
-        </div>
-      </div>
     </section>
 
-    {/* FEATURES */}
     <section className="features-section">
       <h2>Why use LeadSniper?</h2>
       <div className="feature-grid">
-        <FeatureCard icon={<Zap/>} title="Real-Time Scanning" desc="We monitor 500+ subreddits 24/7 for keywords related to your product." />
-        <FeatureCard icon={<BarChart/>} title="Intent Scoring" desc="Our AI reads the context. We only show you leads who want to buy, not just chat." />
-        <FeatureCard icon={<Shield/>} title="Safe & Compliant" desc="We respect Reddit API limits and privacy policies so your account stays safe." />
+        <FeatureCard icon={<Zap/>} title="Real-Time Scanning" desc="We monitor 500+ subreddits 24/7." />
+        <FeatureCard icon={<BarChart/>} title="Intent Scoring" desc="Our AI reads context to find buyers." />
+        <FeatureCard icon={<Shield/>} title="Safe & Compliant" desc="We respect Reddit API limits." />
       </div>
     </section>
   </div>
@@ -128,8 +138,8 @@ const FeatureCard = ({ icon, title, desc }) => (
 const PricingPage = ({ navigate }) => (
   <div className="pricing-section">
     <div className="text-center">
-      <h2>Simple, Transparent Pricing</h2>
-      <p>Stop paying for leads that don't convert.</p>
+      <h2>Simple Pricing</h2>
+      <p>Stop paying for bad leads.</p>
     </div>
     <div className="pricing-grid">
       <div className="glass-card price-card">
@@ -138,19 +148,16 @@ const PricingPage = ({ navigate }) => (
         <ul>
           <li><CheckCircle size={16}/> 3 Leads / Day</li>
           <li><CheckCircle size={16}/> Basic Analysis</li>
-          <li><CheckCircle size={16}/> Manual Search</li>
         </ul>
         <button onClick={() => navigate('dashboard')} className="secondary-btn full-width">Get Started</button>
       </div>
       <div className="glass-card price-card featured">
-        <div className="pop-tag">MOST POPULAR</div>
+        <div className="pop-tag">POPULAR</div>
         <h3>Pro</h3>
         <div className="price">₹399<span>/mo</span></div>
         <ul>
           <li><CheckCircle size={16}/> Unlimited Leads</li>
-          <li><CheckCircle size={16}/> AI Intent Scoring</li>
           <li><CheckCircle size={16}/> Export to CSV</li>
-          <li><CheckCircle size={16}/> Priority Support</li>
         </ul>
         <button onClick={() => navigate('dashboard')} className="primary-btn full-width">Start Pro Trial</button>
       </div>
@@ -158,35 +165,118 @@ const PricingPage = ({ navigate }) => (
   </div>
 );
 
-// --- 3. LOGIN PAGE ---
-const LoginPage = ({ onLogin }) => {
+// --- 3. COMPLETE LOGIN PAGE (EMAIL + PHONE + GOOGLE) ---
+const LoginPage = ({ onGoogleLogin, navigate }) => {
+  const [authMode, setAuthMode] = useState('options'); 
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [showOtpInput, setShowOtpInput] = useState(false);
+  const [confirmationResult, setConfirmationResult] = useState(null);
+
+  const handleEmailLogin = async () => {
+    try { await signInWithEmailAndPassword(auth, email, password); } 
+    catch (error) { alert("Error: " + error.message); }
+  };
+
+  const handleEmailSignup = async () => {
+    try { await createUserWithEmailAndPassword(auth, email, password); } 
+    catch (error) { alert("Error: " + error.message); }
+  };
+
+  const setupRecaptcha = () => {
+    if (!window.recaptchaVerifier) {
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        'size': 'invisible', 'callback': () => {}
+      });
+    }
+  };
+
+  const handleSendOtp = async () => {
+    setupRecaptcha();
+    const appVerifier = window.recaptchaVerifier;
+    try {
+      const formattedPhone = phone.startsWith('+') ? phone : `+91${phone}`; 
+      const confirmation = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
+      setConfirmationResult(confirmation);
+      setShowOtpInput(true);
+    } catch (error) {
+      console.error(error);
+      alert("SMS Failed: " + error.message);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    try { await confirmationResult.confirm(otp); } 
+    catch (error) { alert("Invalid OTP"); }
+  };
+
   return (
     <div className="login-container">
       <div className="glass-card login-box">
         <h2>Welcome Back</h2>
-        <p>Enter your email to access your dashboard</p>
-        <input 
-          type="email" 
-          placeholder="name@company.com" 
-          className="input-field"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <button onClick={() => onLogin(email || 'User')} className="primary-btn full-width">
-          Continue with Email
-        </button>
-        <div className="divider">OR</div>
-        <button onClick={() => onLogin('Google User')} className="secondary-btn full-width">
-          Continue with Google
-        </button>
+        <p style={{marginBottom: 20}}>Login to access dashboard</p>
+
+        {authMode === 'options' && (
+          <div className="auth-options">
+            <button onClick={onGoogleLogin} className="google-btn full-width mb-10">
+              <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" width="20" />
+              Continue with Google
+            </button>
+            <button onClick={() => setAuthMode('email-login')} className="secondary-btn full-width mb-10">
+              <Mail size={18} style={{marginRight: 8}}/> Continue with Email
+            </button>
+            <button onClick={() => setAuthMode('phone')} className="secondary-btn full-width">
+              <Phone size={18} style={{marginRight: 8}}/> Continue with Phone
+            </button>
+          </div>
+        )}
+
+        {authMode === 'email-login' && (
+          <div className="email-form">
+            <input type="email" placeholder="Email" className="input-field" value={email} onChange={(e)=>setEmail(e.target.value)} />
+            <input type="password" placeholder="Password" className="input-field" value={password} onChange={(e)=>setPassword(e.target.value)} />
+            <button onClick={handleEmailLogin} className="primary-btn full-width mb-10">Log In</button>
+            <p className="text-small">No account? <span className="link" onClick={()=>setAuthMode('email-signup')}>Sign Up</span></p>
+            <span className="link back-link" onClick={()=>setAuthMode('options')}>← Back</span>
+          </div>
+        )}
+
+        {authMode === 'email-signup' && (
+          <div className="email-form">
+            <input type="email" placeholder="Email" className="input-field" value={email} onChange={(e)=>setEmail(e.target.value)} />
+            <input type="password" placeholder="Password" className="input-field" value={password} onChange={(e)=>setPassword(e.target.value)} />
+            <button onClick={handleEmailSignup} className="primary-btn full-width mb-10">Create Account</button>
+            <p className="text-small">Have account? <span className="link" onClick={()=>setAuthMode('email-login')}>Log In</span></p>
+            <span className="link back-link" onClick={()=>setAuthMode('options')}>← Back</span>
+          </div>
+        )}
+
+        {authMode === 'phone' && (
+          <div className="phone-form">
+            {!showOtpInput ? (
+              <>
+                <input type="tel" placeholder="Phone (e.g. 9876543210)" className="input-field" value={phone} onChange={(e)=>setPhone(e.target.value)} />
+                <div id="recaptcha-container"></div>
+                <button onClick={handleSendOtp} className="primary-btn full-width mb-10">Send OTP</button>
+              </>
+            ) : (
+              <>
+                <input type="text" placeholder="Enter OTP" className="input-field" value={otp} onChange={(e)=>setOtp(e.target.value)} />
+                <button onClick={handleVerifyOtp} className="primary-btn full-width mb-10">Verify & Login</button>
+              </>
+            )}
+            <span className="link back-link" onClick={()=>setAuthMode('options')}>← Back</span>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-// --- 4. DASHBOARD (THE TOOL) ---
-const Dashboard = ({ user }) => {
+// --- 4. DASHBOARD ---
+const Dashboard = ({ user, payLink }) => {
   const [step, setStep] = useState('input'); 
   const [productDesc, setProductDesc] = useState('');
   const [logs, setLogs] = useState([]);
@@ -195,39 +285,21 @@ const Dashboard = ({ user }) => {
   const [isPro, setIsPro] = useState(false); 
   const logEndRef = useRef(null);
 
-  // *** YOUR PAYU LINK ***
-  const PAYU_LINK = "https://u.payu.in/PAYUMN/Hrn6dcOyl0Ic"; 
+  useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [logs]);
 
-  useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [logs]);
-
-  const addLog = (message) => {
-    setLogs(prev => [...prev, message]);
-  };
+  const addLog = (msg) => setLogs(prev => [...prev, msg]);
 
   const handleSearch = async () => {
     if (!productDesc.trim()) return;
-    
     setStep('processing');
     setIsLoading(true);
     setLogs([]);
-    setLeads([]);
-
-    const loadingMessages = [
-      "Connecting to Reddit API...",
-      "Scanning subreddits...",
-      "Analyzing user sentiment...",
-      "Filtering for high intent...",
-      "Compiling results..."
-    ];
-
+    
+    // UI Simulation
+    const loadingMessages = ["Connecting to API...", "Scanning subreddits...", "Analyzing sentiment...", "Filtering leads...", "Finalizing..."];
     let msgIndex = 0;
     const interval = setInterval(() => {
-      if (msgIndex < loadingMessages.length) {
-        addLog(loadingMessages[msgIndex]);
-        msgIndex++;
-      }
+      if (msgIndex < loadingMessages.length) { addLog(loadingMessages[msgIndex]); msgIndex++; }
     }, 800);
     
     try {
@@ -236,23 +308,19 @@ const Dashboard = ({ user }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ product: productDesc }),
       });
-
       const data = await response.json();
       clearInterval(interval);
-
       if (data.success) {
-        addLog("✅ Analysis Complete.");
+        addLog("✅ Complete.");
         setTimeout(() => {
              setLeads(data.data);
              setStep('results');
              setIsLoading(false);
         }, 1000);
       } 
-
     } catch (error) {
       clearInterval(interval);
-      console.error(error);
-      addLog("⚠️ Error: Backend issue. Retrying...");
+      addLog("⚠️ Error: Backend issue.");
       setIsLoading(false);
     }
   };
@@ -264,24 +332,18 @@ const Dashboard = ({ user }) => {
       <div className="dash-header">
         <h2>Dashboard</h2>
         <div className="user-badge">
-            <div className="avatar-small">{user.name[0]}</div>
-            <span>{user.email}</span>
+            <div className="avatar-small">{user.email ? user.email[0].toUpperCase() : 'U'}</div>
+            <span className="desktop-only">{user.email || user.phoneNumber}</span>
         </div>
       </div>
 
-      {/* DASHBOARD CONTENT (Reuse your tool logic) */}
       <div className="tool-wrapper">
         {step === 'input' && (
           <div className="input-section">
             <h1 className="tool-title">New Search</h1>
             <p className="tool-sub">Describe your product to find leads.</p>
             <div className="search-box">
-                <textarea 
-                  className="textarea"
-                  placeholder="e.g. I sell a CRM for freelance photographers..."
-                  value={productDesc}
-                  onChange={(e) => setProductDesc(e.target.value)}
-                />
+                <textarea className="textarea" placeholder="e.g. CRM for photographers..." value={productDesc} onChange={(e) => setProductDesc(e.target.value)} />
                 <button onClick={handleSearch} disabled={!productDesc.trim() || isLoading} className="primary-btn search-btn">
                   {isLoading ? <Loader2 className="spin" size={20}/> : "Find Leads Now"}
                 </button>
@@ -294,14 +356,10 @@ const Dashboard = ({ user }) => {
              <div className="glass-panel terminal">
                 <div className="terminal-header">
                   <div className="dots"><div className="dot red"/><div className="dot yellow"/><div className="dot green"/></div>
-                  <span className="term-title">Agent-001 (Scanning)</span>
+                  <span className="term-title">Scanning...</span>
                 </div>
                 <div className="terminal-body">
-                  {logs.map((log, i) => (
-                    <div key={i} className="log-entry">
-                      <span className="arrow">➜</span> {log}
-                    </div>
-                  ))}
+                  {logs.map((log, i) => <div key={i} className="log-entry"><span className="arrow">➜</span> {log}</div>)}
                   <div ref={logEndRef}></div>
                 </div>
              </div>
@@ -314,32 +372,23 @@ const Dashboard = ({ user }) => {
               <h3>Found {leads.length} Leads</h3>
               <button onClick={() => setStep('input')} className="secondary-btn">New Search</button>
             </div>
-
             <div className="grid">
               {visibleLeads.map((lead) => (
                 <div key={lead.id} className="glass-panel card">
                   <div className="card-header">
-                    <div className="match-badge">
-                      <Zap size={12} fill="currentColor" /> {lead.score}% MATCH
-                    </div>
+                    <div className="match-badge"><Zap size={12} fill="currentColor" /> {lead.score}% MATCH</div>
                     <span className="time">Just now</span>
                   </div>
                   <h3 className="card-title">{lead.text}</h3>
-                  <div className="card-footer">
-                    <button className="reply-btn">View Discussion <ArrowRight size={16}/></button>
-                  </div>
+                  <div className="card-footer"><button className="reply-btn">View <ArrowRight size={16}/></button></div>
                 </div>
               ))}
-
               {!isPro && (
                   <div className="glass-panel paywall">
                       <Lock size={40} className="lock-icon" />
                       <h3>Unlock {leads.length - 3} More Leads</h3>
-                      <p>Upgrade to Pro to see the full list.</p>
-                      <a href={PAYU_LINK} target="_blank" rel="noreferrer" style={{textDecoration: 'none'}}>
-                        <button className="primary-btn upgrade-btn">
-                            Unlock Now - ₹399 <Star size={18} fill="white" />
-                        </button>
+                      <a href={payLink} target="_blank" rel="noreferrer" style={{textDecoration: 'none'}}>
+                        <button className="primary-btn upgrade-btn">Unlock Now - ₹399 <Star size={18} fill="white" /></button>
                       </a>
                   </div>
               )}
@@ -358,32 +407,20 @@ const Navbar = ({ navigate, user, logout, currentPage }) => (
         <div className="logo-icon"><Zap size={20} fill="white" stroke="none"/></div>
         <span>Lead<span style={{color: '#ea580c'}}>Sniper</span></span>
     </div>
-    <div className="nav-links desktop-only">
+    <div className="nav-links desktop-nav">
         <span onClick={() => navigate('home')} className={currentPage === 'home' ? 'active' : ''}>Home</span>
         <span onClick={() => navigate('pricing')} className={currentPage === 'pricing' ? 'active' : ''}>Pricing</span>
-        {user ? (
-            <span onClick={logout}>Logout</span>
-        ) : (
-            <span onClick={() => navigate('login')}>Login</span>
-        )}
+        {user ? <span onClick={logout}>Logout</span> : <span onClick={() => navigate('login')}>Login</span>}
     </div>
-    {user ? (
-        <button onClick={() => navigate('dashboard')} className="primary-btn small-btn">Dashboard</button>
-    ) : (
-        <button onClick={() => navigate('login')} className="primary-btn small-btn">Get Started</button>
-    )}
+    {user ? <button onClick={() => navigate('dashboard')} className="primary-btn small-btn">Dashboard</button> 
+          : <button onClick={() => navigate('login')} className="primary-btn small-btn">Get Started</button>}
   </nav>
 );
 
-const Footer = ({ navigate }) => (
+const Footer = () => (
   <footer className="footer">
     <div className="footer-content">
       <div className="logo">Lead<span style={{color: '#ea580c'}}>Sniper</span></div>
-      <div className="footer-links">
-        <span>Terms</span>
-        <span>Privacy</span>
-        <span>Contact</span>
-      </div>
       <div className="copy">© 2025 LeadSniper Inc.</div>
     </div>
   </footer>
@@ -394,7 +431,7 @@ const Popup = ({ onClose }) => (
     <div className="popup-card">
       <button onClick={onClose} className="close-btn"><X size={20}/></button>
       <h3>🔥 Special Offer!</h3>
-      <p>Get 50% OFF your first month if you sign up today.</p>
+      <p>50% OFF your first month.</p>
       <button className="primary-btn full-width">Claim Offer</button>
     </div>
   </div>
@@ -403,137 +440,77 @@ const Popup = ({ onClose }) => (
 const GlobalStyles = () => (
   <style>{`
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-    
-    :root {
-      --primary: #ea580c; --primary-dark: #c2410c;
-      --bg-dark: #0f172a; --bg-card: #1e293b;
-      --glass-bg: rgba(255, 255, 255, 0.03);
-      --glass-border: rgba(255, 255, 255, 0.1);
-      --text-muted: #94a3b8;
-    }
-
+    :root { --primary: #ea580c; --primary-dark: #c2410c; --bg-dark: #0f172a; --glass-bg: rgba(255, 255, 255, 0.03); --glass-border: rgba(255, 255, 255, 0.1); --text-muted: #94a3b8; }
     * { box-sizing: border-box; }
     body { margin: 0; font-family: 'Plus Jakarta Sans', sans-serif; background-color: var(--bg-dark); color: white; overflow-x: hidden; }
     .page { min-height: 100vh; display: flex; flex-direction: column; width: 100%; align-items: center; }
     .content { flex: 1; width: 100%; max-width: 1200px; margin: 0 auto; padding: 20px; }
-
-    /* Buttons */
+    
+    /* COMPONENTS */
     .primary-btn { background: linear-gradient(to right, var(--primary), var(--primary-dark)); border: none; color: white; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: transform 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 1rem; }
     .primary-btn:hover { transform: translateY(-2px); }
     .secondary-btn { background: rgba(255,255,255,0.1); border: 1px solid var(--glass-border); color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 1rem; }
-    .google-btn { background: white; color: #0f172a; border: none; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 1rem; transition: background 0.2s; }
-    .google-btn:hover { background: #f1f5f9; }
-    .big-btn { padding: 16px 32px; font-size: 1.1rem; border-radius: 12px; }
-    .full-width { width: 100%; }
-    .small-btn { padding: 8px 16px; font-size: 0.9rem; }
-    .mb-10 { margin-bottom: 10px; }
-
-    /* Navigation */
+    .google-btn { background: white; color: #0f172a; border: none; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 1rem; }
+    
+    /* NAV */
     .nav { display: flex; justify-content: space-between; align-items: center; padding: 1.5rem 2rem; border-bottom: 1px solid var(--glass-border); max-width: 1200px; margin: 0 auto; width: 100%; }
     .nav-links { display: flex; gap: 30px; font-size: 0.95rem; color: var(--text-muted); cursor: pointer; }
-    .nav-links span:hover, .nav-links span.active { color: white; }
     .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.25rem; cursor: pointer; }
     .logo-icon { background: var(--primary); width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
 
-    /* Landing Page */
+    /* LANDING */
     .landing { text-align: center; padding: 4rem 20px; display: flex; flex-direction: column; align-items: center; }
-    .hero-section { max-width: 800px; width: 100%; display: flex; flex-direction: column; align-items: center; }
     .hero-title { font-size: 3.5rem; line-height: 1.1; margin-bottom: 20px; font-weight: 800; }
     .gradient-text { background: linear-gradient(to right, #fbbf24, #ea580c); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
     .hero-sub { font-size: 1.2rem; color: var(--text-muted); margin-bottom: 40px; max-width: 600px; line-height: 1.6; }
-    .cta-group { display: flex; flex-direction: column; align-items: center; gap: 20px; margin-bottom: 50px; width: 100%; }
-    .hero-img { width: 100%; border-radius: 16px; border: 1px solid var(--glass-border); box-shadow: 0 20px 50px -10px rgba(0,0,0,0.5); opacity: 0.8; margin-top: 30px; }
-    .hero-preview { width: 100%; max-width: 600px; margin-top: 30px; }
-    .preview-card { text-align: left; font-family: monospace; font-size: 0.9rem; }
-    .preview-header { padding-bottom: 10px; border-bottom: 1px solid var(--glass-border); margin-bottom: 10px; }
-    .preview-row { margin-bottom: 5px; color: #e2e8f0; }
-    .green { color: #4ade80; margin-right: 10px; }
-    
-    .badge { background: rgba(234, 88, 12, 0.1); color: var(--primary); padding: 6px 16px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; margin-bottom: 20px; display: inline-block; border: 1px solid rgba(234, 88, 12, 0.2); }
-    .social-proof { display: flex; align-items: center; gap: 15px; color: var(--text-muted); font-size: 0.9rem; }
-    .avatars { display: flex; position: relative; width: 100px; }
-    .avatar { width: 32px; height: 32px; border-radius: 50%; background: #334155; border: 2px solid #0f172a; position: relative; margin-right: -10px; }
-
-    /* Features */
-    .features-section { padding: 4rem 20px; max-width: 1200px; width: 100%; }
-    .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 30px; }
+    .feature-grid, .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 30px; width: 100%; }
     .glass-card { background: var(--glass-bg); backdrop-filter: blur(10px); border: 1px solid var(--glass-border); border-radius: 16px; padding: 24px; text-align: left; }
-    .icon-box { background: rgba(255,255,255,0.05); width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--primary); margin-bottom: 15px; }
-
-    /* Pricing */
-    .pricing-section { padding: 4rem 20px; text-align: center; }
-    .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 30px; margin-top: 40px; max-width: 900px; margin-left: auto; margin-right: auto; }
-    .price-card { text-align: center; position: relative; display: flex; flex-direction: column; }
-    .price-card.featured { border-color: var(--primary); box-shadow: 0 0 30px -10px rgba(234, 88, 12, 0.3); }
-    .pop-tag { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--primary); font-size: 0.7rem; font-weight: 700; padding: 4px 12px; border-radius: 20px; }
     .price { font-size: 2.5rem; font-weight: 800; margin: 10px 0; }
-    .price span { font-size: 1rem; color: var(--text-muted); font-weight: 400; }
-    .price-card ul { list-style: none; padding: 0; text-align: left; margin: 20px 0; flex: 1; }
-    .price-card li { display: flex; gap: 10px; margin-bottom: 15px; color: #e2e8f0; align-items: center; }
-
-    /* Login */
+    
+    /* LOGIN */
     .login-container { display: flex; justify-content: center; align-items: center; min-height: 60vh; padding: 20px; }
     .login-box { width: 100%; max-width: 400px; text-align: center; }
     .input-field { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(0,0,0,0.2); color: white; outline: none; font-size: 1rem; }
-    .input-field:focus { border-color: var(--primary); }
-    .divider { margin: 20px 0; color: var(--text-muted); font-size: 0.8rem; }
-    .text-small { font-size: 0.8rem; color: var(--text-muted); margin-top: 15px; }
     .link { color: var(--primary); cursor: pointer; font-weight: 600; }
-    .back-link { display: block; margin-top: 20px; font-size: 0.9rem; }
+    .mb-10 { margin-bottom: 10px; }
+    .full-width { width: 100%; }
 
-    /* Dashboard */
+    /* DASHBOARD */
     .dashboard-container { width: 100%; max-width: 1000px; margin: 0 auto; padding: 20px; }
     .dash-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
     .user-badge { display: flex; align-items: center; gap: 10px; background: var(--glass-bg); padding: 5px 15px; border-radius: 20px; border: 1px solid var(--glass-border); }
-    .avatar-small { width: 24px; height: 24px; background: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; color: white; }
-    .avatar-img { width: 24px; height: 24px; border-radius: 50%; }
+    .avatar-small { width: 24px; height: 24px; background: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; fontWeight: 700; color: white; }
     
-    /* Tool Styles */
-    .input-section { text-align: center; max-width: 800px; margin: 0 auto; }
-    .tool-title { font-size: 2.5rem; margin-bottom: 10px; }
-    .tool-sub { color: var(--text-muted); margin-bottom: 30px; }
     .search-box { background: white; padding: 1.5rem; border-radius: 1rem; color: #0f172a; margin-top: 20px; }
     .textarea { width: 100%; border: 2px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; font-size: 1rem; resize: none; min-height: 100px; font-family: inherit; }
-    .search-btn { margin-top: 15px; width: 100%; justify-content: center; }
-    
     .terminal { background: #0f172a; border-radius: 12px; overflow: hidden; max-width: 600px; margin: 0 auto; border: 1px solid var(--glass-border); }
-    .terminal-header { background: rgba(255,255,255,0.05); padding: 12px; display: flex; gap: 10px; align-items: center; }
     .terminal-body { padding: 20px; height: 300px; overflow-y: auto; font-family: monospace; color: #4ade80; text-align: left; }
-    .log-entry { margin-bottom: 5px; display: flex; gap: 10px; }
-    .arrow { color: var(--primary); }
     
-    .results-container { padding: 20px 0; }
-    .results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
-    .card { display: flex; flexDirection: column; justify-content: space-between; color: white; }
-    .card-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
-    .match-badge { background: rgba(34, 197, 94, 0.1); color: #4ade80; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; display: flex; gap: 5px; align-items: center; }
-    .paywall { grid-column: 1 / -1; text-align: center; padding: 40px; display: flex; flex-direction: column; align-items: center; gap: 15px; border: 1px dashed var(--primary); }
-    .lock-icon { color: var(--primary); margin-bottom: 10px; }
-    .upgrade-btn { padding: 12px 24px; font-size: 1rem; border-radius: 8px; }
-    .reply-btn { width: 100%; background: rgba(255,255,255,0.1); border: none; color: white; padding: 8px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 10px; }
+    .paywall { grid-column: 1 / -1; text-align: center; padding: 40px; border: 1px dashed var(--primary); display: flex; flex-direction: column; align-items: center; gap: 15px; }
+    .spin { animation: spin 1s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-    /* Footer */
+    /* FOOTER */
     .footer { border-top: 1px solid var(--glass-border); padding: 40px 0; margin-top: 60px; text-align: center; color: var(--text-muted); }
     .footer-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; }
-    .footer-links { display: flex; gap: 20px; font-size: 0.9rem; }
 
-    /* Popup */
+    /* POPUP */
     .popup-overlay { position: fixed; bottom: 20px; right: 20px; z-index: 100; animation: slideIn 0.5s ease-out; }
     .popup-card { background: white; color: #0f172a; padding: 20px; border-radius: 12px; width: 300px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); position: relative; text-align: center; }
     .close-btn { position: absolute; top: 10px; right: 10px; background: none; border: none; cursor: pointer; color: #94a3b8; }
-    
     @keyframes slideIn { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-    
-    /* MOBILE QUERY */
+
+    /* RESPONSIVE */
     @media (max-width: 768px) {
-      .hero-title { font-size: 2.5rem; }
+      .hero-title { font-size: 2.2rem; }
       .footer-content { flex-direction: column; gap: 20px; }
       .desktop-nav { display: none; }
       .nav { padding: 1rem; }
       .popup-overlay { bottom: 10px; right: 10px; left: 10px; width: auto; }
       .popup-card { width: 100%; }
-      .hero-img { display: none; } /* Hide large image on mobile */
+      .dashboard-container { padding: 10px; }
+      .search-box { padding: 1rem; }
     }
   `}</style>
 );
