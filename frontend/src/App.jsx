@@ -5,27 +5,16 @@ import {
   CreditCard, BarChart, LogOut, ChevronDown, Mail
 } from 'lucide-react';
 
-// Import Firebase Authentication
-import { auth, provider, signInWithPopup, signOut } from './firebaseConfig';
-import { onAuthStateChanged } from 'firebase/auth';
-
 // --- MAIN APP COMPONENT (ROUTER) ---
 export default function App() {
   const [currentPage, setCurrentPage] = useState('home');
-  const [user, setUser] = useState(null); // Stores real user data
+  const [user, setUser] = useState(null); // null = not logged in
   const [showPopup, setShowPopup] = useState(false);
 
-  // Check if user is already logged in (Persistent Login)
+  // Show "Special Offer" popup after 5 seconds
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-    // Show marketing popup after 5 seconds
     const timer = setTimeout(() => setShowPopup(true), 5000);
-    return () => {
-      unsubscribe();
-      clearTimeout(timer);
-    }
+    return () => clearTimeout(timer);
   }, []);
 
   const navigate = (page) => {
@@ -33,18 +22,12 @@ export default function App() {
     setCurrentPage(page);
   };
 
-  const handleGoogleLogin = async () => {
-    try {
-      await signInWithPopup(auth, provider);
-      navigate('dashboard');
-    } catch (error) {
-      console.error("Login Failed:", error);
-      alert("Login failed. Please try again.");
-    }
+  const handleLogin = (email) => {
+    setUser({ name: "Founder", email: email, plan: "free" });
+    navigate('dashboard');
   };
 
-  const handleLogout = async () => {
-    await signOut(auth);
+  const handleLogout = () => {
     setUser(null);
     navigate('home');
   };
@@ -65,9 +48,9 @@ export default function App() {
       <main className="content">
         {currentPage === 'home' && <LandingPage navigate={navigate} />}
         {currentPage === 'pricing' && <PricingPage navigate={navigate} />}
-        {currentPage === 'login' && <LoginPage onLogin={handleGoogleLogin} />}
+        {currentPage === 'login' && <LoginPage onLogin={handleLogin} />}
         {currentPage === 'dashboard' && (
-          user ? <Dashboard user={user} /> : <LoginPage onLogin={handleGoogleLogin} />
+          user ? <Dashboard user={user} /> : <LoginPage onLogin={handleLogin} />
         )}
       </main>
 
@@ -75,7 +58,7 @@ export default function App() {
       <Footer navigate={navigate} />
 
       {/* MARKETING POPUP */}
-      {showPopup && currentPage === 'home' && !user && (
+      {showPopup && currentPage === 'home' && (
         <Popup onClose={() => setShowPopup(false)} />
       )}
     </div>
@@ -175,15 +158,26 @@ const PricingPage = ({ navigate }) => (
   </div>
 );
 
-// --- 3. LOGIN PAGE (Now uses Google!) ---
+// --- 3. LOGIN PAGE ---
 const LoginPage = ({ onLogin }) => {
+  const [email, setEmail] = useState('');
   return (
     <div className="login-container">
       <div className="glass-card login-box">
         <h2>Welcome Back</h2>
-        <p>Login to access your dashboard</p>
-        <button onClick={onLogin} className="google-btn full-width">
-          <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" width="20" />
+        <p>Enter your email to access your dashboard</p>
+        <input 
+          type="email" 
+          placeholder="name@company.com" 
+          className="input-field"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <button onClick={() => onLogin(email || 'User')} className="primary-btn full-width">
+          Continue with Email
+        </button>
+        <div className="divider">OR</div>
+        <button onClick={() => onLogin('Google User')} className="secondary-btn full-width">
           Continue with Google
         </button>
       </div>
@@ -270,16 +264,12 @@ const Dashboard = ({ user }) => {
       <div className="dash-header">
         <h2>Dashboard</h2>
         <div className="user-badge">
-            {user.photoURL ? (
-                <img src={user.photoURL} alt="Profile" className="avatar-img" />
-            ) : (
-                <div className="avatar-small">{user.email ? user.email[0].toUpperCase() : 'U'}</div>
-            )}
-            <span className="desktop-only">{user.displayName || user.email}</span>
+            <div className="avatar-small">{user.name[0]}</div>
+            <span>{user.email}</span>
         </div>
       </div>
 
-      {/* DASHBOARD CONTENT */}
+      {/* DASHBOARD CONTENT (Reuse your tool logic) */}
       <div className="tool-wrapper">
         {step === 'input' && (
           <div className="input-section">
@@ -368,7 +358,7 @@ const Navbar = ({ navigate, user, logout, currentPage }) => (
         <div className="logo-icon"><Zap size={20} fill="white" stroke="none"/></div>
         <span>Lead<span style={{color: '#ea580c'}}>Sniper</span></span>
     </div>
-    <div className="nav-links desktop-nav">
+    <div className="nav-links desktop-only">
         <span onClick={() => navigate('home')} className={currentPage === 'home' ? 'active' : ''}>Home</span>
         <span onClick={() => navigate('pricing')} className={currentPage === 'pricing' ? 'active' : ''}>Pricing</span>
         {user ? (
@@ -436,6 +426,7 @@ const GlobalStyles = () => (
     .big-btn { padding: 16px 32px; font-size: 1.1rem; border-radius: 12px; }
     .full-width { width: 100%; }
     .small-btn { padding: 8px 16px; font-size: 0.9rem; }
+    .mb-10 { margin-bottom: 10px; }
 
     /* Navigation */
     .nav { display: flex; justify-content: space-between; align-items: center; padding: 1.5rem 2rem; border-bottom: 1px solid var(--glass-border); max-width: 1200px; margin: 0 auto; width: 100%; }
@@ -483,9 +474,12 @@ const GlobalStyles = () => (
     /* Login */
     .login-container { display: flex; justify-content: center; align-items: center; min-height: 60vh; padding: 20px; }
     .login-box { width: 100%; max-width: 400px; text-align: center; }
-    .input-field { width: 100%; padding: 12px; margin: 20px 0; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(0,0,0,0.2); color: white; outline: none; font-size: 1rem; }
+    .input-field { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(0,0,0,0.2); color: white; outline: none; font-size: 1rem; }
     .input-field:focus { border-color: var(--primary); }
     .divider { margin: 20px 0; color: var(--text-muted); font-size: 0.8rem; }
+    .text-small { font-size: 0.8rem; color: var(--text-muted); margin-top: 15px; }
+    .link { color: var(--primary); cursor: pointer; font-weight: 600; }
+    .back-link { display: block; margin-top: 20px; font-size: 0.9rem; }
 
     /* Dashboard */
     .dashboard-container { width: 100%; max-width: 1000px; margin: 0 auto; padding: 20px; }
