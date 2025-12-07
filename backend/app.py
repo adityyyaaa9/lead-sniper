@@ -11,34 +11,33 @@ from flask_cors import CORS
 import firebase_admin
 from firebase_admin import credentials, firestore
 from dotenv import load_dotenv
+from openai import OpenAI  # <--- NEW IMPORT
 
 load_dotenv()
 
 app = Flask(__name__)
-# Enable CORS for all domains so your Vercel frontend can talk to this backend
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# --- 1. SETUP FIREBASE ADMIN (Crash-Proof) ---
+# --- 1. SETUP CLIENTS (Crash-Proof) ---
 db = None
+reddit = None
+openai_client = None
+
+# A. Firebase
 try:
     if not firebase_admin._apps:
         cred_str = os.environ.get('FIREBASE_CREDENTIALS')
         if cred_str:
-            # Clean up the string just in case copy-paste added extra quotes
             cred_str = cred_str.strip("'").strip('"')
             cred_json = json.loads(cred_str)
             cred = credentials.Certificate(cred_json)
             firebase_admin.initialize_app(cred)
             db = firestore.client()
-            print("✅ Firebase Admin Initialized Successfully")
-        else:
-            print("⚠️ Warning: FIREBASE_CREDENTIALS env var not found.")
+            print("✅ Firebase Admin Initialized")
 except Exception as e:
-    print(f"❌ CRITICAL FIREBASE ERROR: Could not initialize DB. Check your JSON format. Error: {e}")
-    # We do NOT raise the error here, so the app can still start.
+    print(f"⚠️ Firebase Error: {e}")
 
-# --- 2. SETUP REDDIT (PRAW) (Crash-Proof) ---
-reddit = None
+# B. Reddit
 try:
     if os.environ.get("REDDIT_CLIENT_ID"):
         reddit = praw.Reddit(
@@ -48,69 +47,116 @@ try:
         )
         print("✅ Reddit API Initialized")
 except Exception as e:
-    print(f"❌ REDDIT ERROR: Could not initialize PRAW. Error: {e}")
+    print(f"⚠️ Reddit Error: {e}")
 
-# --- 3. ROUTES ---
+# C. OpenAI (The Brain)
+try:
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if api_key:
+        openai_client = OpenAI(api_key=api_key)
+        print("✅ OpenAI Initialized")
+    else:
+        print("⚠️ OpenAI Key Missing - AI features will be simulated")
+except Exception as e:
+    print(f"⚠️ OpenAI Error: {e}")
+
+# --- HELPER: AI SCORING ---
+def analyze_lead_intent(text, product_name):
+    """
+    Uses OpenAI to score a lead from 0-100 based on buying intent.
+    """
+    if not openai_client:
+        return random.randint(40, 90) # Fallback if no key
+
+    try:
+        # We truncate text to 500 chars to save tokens/money
+        prompt = f"""
+        Analyze this Reddit post. The user is looking for a product like '{product_name}'.
+        Rate their buying intent from 0 to 100.
+        0 = Irrelevant/Spam. 100 = "Shut up and take my money".
+        Return ONLY the number.
+
+        Post: "{text[:500]}"
+        """
+        
+        response = openai_client.chat.completions.create(
+            model="gpt-3.5-turbo", # Use 3.5 for speed and low cost
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=5,
+            temperature=0
+        )
+        
+        score = int(response.choices[0].message.content.strip())
+        return score
+    except Exception as e:
+        print(f"AI Analysis Failed: {e}")
+        return 50 # Neutral score on error
+
+# --- ROUTES ---
 
 @app.route('/')
 def home():
-    status = "Online"
-    db_status = "Connected" if db else "Disconnected (Check Logs)"
-    return f"Backend Status: {status} | Database: {db_status}"
+    return "Backend Online. AI: " + ("Active" if openai_client else "Inactive")
 
-# A. THE SEARCH ROUTE
 @app.route('/api/search', methods=['POST'])
 def search_leads():
     try:
         data = request.json or {}
         product_name = data.get('product', 'SaaS')
-        print(f"🔎 Searching for: {product_name}")
+        print(f"🔎 Searching & Scoring for: {product_name}")
 
         results = []
         
-        # OPTION A: REAL REDDIT SEARCH (If keys exist and reddit loaded)
+        # OPTION A: REAL REDDIT + REAL AI
         if reddit:
             try:
-                # Search global reddit posts
-                for submission in reddit.subreddit("all").search(product_name, limit=10, sort='new'):
+                # Limit to 5 posts to prevent timeout (Render has 30s limit)
+                for submission in reddit.subreddit("all").search(product_name, limit=5, sort='new'):
+                    
+                    # 1. Combine title and body for context
+                    full_text = f"{submission.title} . {submission.selftext}"
+                    
+                    # 2. ASK THE AI
+                    ai_score = analyze_lead_intent(full_text, product_name)
+                    
                     results.append({
                         "id": submission.id,
                         "text": submission.title,
-                        "score": int(submission.score) + random.randint(50, 90),
+                        "score": ai_score,
                         "url": submission.url
                     })
             except Exception as e:
-                print(f"Reddit API Query Error: {e}")
-                # Don't return 500 yet, fall back to simulation
+                print(f"Reddit/AI Loop Error: {e}")
                 
-        # OPTION B: SIMULATION MODE (Fallback)
+        # OPTION B: SIMULATION (Fallback)
         if not results:
-            print("⚠️ Serving Simulation Data")
-            time.sleep(1.0) # Fake delay
+            # If no real results found (or keys missing), generate fake ones
             FAKE_COMMENTS = [
-                f"Does anyone know a good alternative to {product_name}?",
-                f"I hate my current tool, looking for {product_name} recommendations.",
-                f"Is {product_name} worth the money? I need something cheaper.",
-                f"How do I solve this specific problem using {product_name}?",
-                "Looking for software that helps with lead generation."
+                f"I need a tool exactly like {product_name}!",
+                f"Has anyone tried {product_name}? I am looking for reviews.",
+                f"My boss wants me to find a {product_name} alternative.",
+                f"Building a {product_name} from scratch is too hard.",
             ]
-            for i in range(5):
+            for i in range(4):
+                # Calculate score based on keyword presence + randomness
+                base_score = 60
+                if "alternative" in product_name.lower(): base_score += 20
+                
                 results.append({
                     "id": f"sim_{i}",
                     "text": random.choice(FAKE_COMMENTS),
-                    "score": random.randint(60, 99)
+                    "score": base_score + random.randint(0, 20)
                 })
 
+        # Sort by highest AI score
+        results.sort(key=lambda x: x['score'], reverse=True)
         return jsonify({"success": True, "data": results})
 
     except Exception as e:
-        print(f"SERVER ERROR in /api/search: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
-# B. THE SHOPIFY WEBHOOK ROUTE
 @app.route('/api/webhook/shopify', methods=['POST'])
 def shopify_webhook():
-    # Security: Verify signature
     shopify_secret = os.environ.get('SHOPIFY_SECRET')
     signature = request.headers.get('X-Shopify-Hmac-Sha256')
     data = request.get_data()
@@ -123,8 +169,7 @@ def shopify_webhook():
         customer_email = payload.get('email') or payload.get('customer', {}).get('email')
         
         if customer_email and db:
-            print(f"💰 Payment Received: Unlocking {customer_email}")
-            # Unlock account in Firestore
+            print(f"💰 Unlocking {customer_email}")
             db.collection('customers').document(customer_email).set({
                 'email': customer_email,
                 'isPro': True,
@@ -132,11 +177,9 @@ def shopify_webhook():
                 'source': 'shopify_webhook'
             }, merge=True)
             return jsonify({"success": True}), 200
-            
-        return jsonify({"success": True, "message": "No email or DB unavailable"}), 200
+        return jsonify({"success": True}), 200
 
     except Exception as e:
-        print(f"Webhook Error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 def verify_shopify_signature(data, signature, secret):
