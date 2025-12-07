@@ -46,7 +46,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-// --- 2. AUTH CONTEXT (Merged) ---
+// --- 2. AUTH CONTEXT (Merged & Debugged) ---
 const AuthContext = createContext();
 
 const AuthProvider = ({ children }) => {
@@ -58,20 +58,32 @@ const AuthProvider = ({ children }) => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
-        // CHECK DATABASE: Look for a document named after their email
+        // CHECK DATABASE WITH DETAILED LOGS
         try {
+            // Log exactly what email we are looking for (quotes show invisible spaces)
+            console.log(`🔍 DEBUG: Searching DB for Document ID: '${currentUser.email}'`); 
+            
             const docRef = doc(db, "customers", currentUser.email); 
             const docSnap = await getDoc(docRef);
 
-            if (docSnap.exists() && docSnap.data().isPro === true) {
-                console.log("User is PRO member");
-                setIsPro(true);
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                console.log("📄 DEBUG: Document Found!", data);
+                
+                if (data.isPro === true) {
+                    console.log("✅ DEBUG: Status is PRO");
+                    setIsPro(true);
+                } else {
+                    console.log("❌ DEBUG: Document exists, but 'isPro' is not true. Current value:", data.isPro);
+                    setIsPro(false);
+                }
             } else {
-                console.log("User is FREE member");
+                console.log("⚠️ DEBUG: Document does NOT exist. Creating the ID manually in Firebase?");
+                console.log(`Make sure Document ID is exactly: ${currentUser.email}`);
                 setIsPro(false);
             }
         } catch (error) {
-            console.error("Error fetching pro status:", error);
+            console.error("🔥 DEBUG: Critical DB Error:", error);
             setIsPro(false);
         }
       } else {
@@ -92,16 +104,13 @@ const AuthProvider = ({ children }) => {
 
 const useAuth = () => useContext(AuthContext);
 
-// --- 3. PROTECTED ROUTE COMPONENT (Merged) ---
+// --- 3. PROTECTED ROUTE COMPONENT ---
 const ProtectedRoute = ({ children }) => {
-  const { user, isPro } = useAuth(); // Removed loading check here as AuthProvider handles it
+  const { user, isPro } = useAuth(); 
 
   if (!user) {
     return <Navigate to="/login" />;
   }
-  // Optional: Uncomment strict paywall below if you want to block non-Pro users entirely
-  // if (!isPro) { return <Navigate to="/" />; }
-
   return children;
 };
 
@@ -123,7 +132,7 @@ export default function App() {
               <Route path="/pricing" element={<PricingPage />} />
               <Route path="/login" element={<LoginPage />} />
 
-              {/* PROTECTED ROUTE (THE REAL DASHBOARD) */}
+              {/* PROTECTED ROUTE */}
               <Route 
                 path="/dashboard" 
                 element={
