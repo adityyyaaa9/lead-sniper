@@ -39,13 +39,18 @@ except Exception as e:
 
 # B. Reddit
 try:
-    if os.environ.get("REDDIT_CLIENT_ID"):
+    client_id = os.environ.get("REDDIT_CLIENT_ID")
+    client_secret = os.environ.get("REDDIT_CLIENT_SECRET")
+    
+    if client_id and client_secret:
         reddit = praw.Reddit(
-            client_id=os.environ.get("REDDIT_CLIENT_ID"),
-            client_secret=os.environ.get("REDDIT_CLIENT_SECRET"),
+            client_id=client_id,
+            client_secret=client_secret,
             user_agent="leadsniper_saas:v1.0"
         )
         print("✅ Reddit API Initialized")
+    else:
+        print("⚠️ Reddit API Keys Missing (REDDIT_CLIENT_ID or REDDIT_CLIENT_SECRET)")
 except Exception as e:
     print(f"⚠️ Reddit Error: {e}")
 
@@ -66,6 +71,7 @@ def analyze_lead_intent(text, product_name):
     Uses OpenAI to score a lead from 0-100 based on buying intent.
     """
     if not openai_client:
+        print("⚠️ No OpenAI Client, using random score.")
         return random.randint(40, 90) # Fallback if no key
 
     try:
@@ -86,17 +92,21 @@ def analyze_lead_intent(text, product_name):
             temperature=0
         )
         
-        score = int(response.choices[0].message.content.strip())
-        return score
+        content = response.choices[0].message.content.strip()
+        print(f"🧠 AI Score: {content}")
+        return int(content)
     except Exception as e:
-        print(f"AI Analysis Failed: {e}")
+        print(f"❌ AI Analysis Failed: {e}")
         return 50 # Neutral score on error
 
 # --- ROUTES ---
 
 @app.route('/')
 def home():
-    return "Backend Online. AI: " + ("Active" if openai_client else "Inactive")
+    status = []
+    status.append("Reddit: " + ("Active" if reddit else "Missing Keys"))
+    status.append("OpenAI: " + ("Active" if openai_client else "Missing Key"))
+    return " | ".join(status)
 
 @app.route('/api/search', methods=['POST'])
 def search_leads():
@@ -110,9 +120,11 @@ def search_leads():
         # OPTION A: REAL REDDIT + REAL AI
         if reddit:
             try:
+                print("DEBUG: Reddit Client Active. Querying API...")
                 # Limit to 5 posts to prevent timeout (Render has 30s limit)
                 for submission in reddit.subreddit("all").search(product_name, limit=5, sort='new'):
                     
+                    print(f"  -> Found Post: {submission.title[:30]}...")
                     # 1. Combine title and body for context
                     full_text = f"{submission.title} . {submission.selftext}"
                     
@@ -126,10 +138,13 @@ def search_leads():
                         "url": submission.url
                     })
             except Exception as e:
-                print(f"Reddit/AI Loop Error: {e}")
+                print(f"❌ Reddit/AI Loop Error: {e}")
+        else:
+            print("⚠️ Skipping Reddit: Client is None (Check Env Vars)")
                 
         # OPTION B: SIMULATION (Fallback)
         if not results:
+            print("⚠️ No real results found. Switching to Simulation Mode.")
             # If no real results found (or keys missing), generate fake ones
             FAKE_COMMENTS = [
                 f"I need a tool exactly like {product_name}!",
