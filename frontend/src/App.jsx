@@ -46,7 +46,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-// --- 2. AUTH CONTEXT (Merged & Debugged) ---
+// --- 2. AUTH CONTEXT (Cleaned) ---
 const AuthContext = createContext();
 
 const AuthProvider = ({ children }) => {
@@ -58,32 +58,18 @@ const AuthProvider = ({ children }) => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
-        // CHECK DATABASE WITH DETAILED LOGS
+        // CHECK DATABASE
         try {
-            // Log exactly what email we are looking for (quotes show invisible spaces)
-            console.log(`🔍 DEBUG: Searching DB for Document ID: '${currentUser.email}'`); 
-            
             const docRef = doc(db, "customers", currentUser.email); 
             const docSnap = await getDoc(docRef);
 
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                console.log("📄 DEBUG: Document Found!", data);
-                
-                if (data.isPro === true) {
-                    console.log("✅ DEBUG: Status is PRO");
-                    setIsPro(true);
-                } else {
-                    console.log("❌ DEBUG: Document exists, but 'isPro' is not true. Current value:", data.isPro);
-                    setIsPro(false);
-                }
+            if (docSnap.exists() && docSnap.data().isPro === true) {
+                setIsPro(true);
             } else {
-                console.log("⚠️ DEBUG: Document does NOT exist. Creating the ID manually in Firebase?");
-                console.log(`Make sure Document ID is exactly: ${currentUser.email}`);
                 setIsPro(false);
             }
         } catch (error) {
-            console.error("🔥 DEBUG: Critical DB Error:", error);
+            console.error("Error fetching pro status:", error);
             setIsPro(false);
         }
       } else {
