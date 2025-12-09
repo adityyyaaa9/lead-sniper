@@ -12,7 +12,8 @@ import {
 import { 
   Search, Zap, CheckCircle, ArrowRight, Loader2, Lock, Star, 
   TrendingUp, Users, MessageCircle, Menu, X, Shield, 
-  CreditCard, BarChart, LogOut, ChevronDown, Mail, Phone, Key
+  CreditCard, BarChart, LogOut, ChevronDown, Mail, Phone, Key,
+  Copy, ExternalLink, Target
 } from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
@@ -30,7 +31,7 @@ import {
 } from "firebase/auth";
 import { getFirestore, doc, getDoc } from "firebase/firestore";
 
-// --- 1. FIREBASE CONFIGURATION (Merged) ---
+// --- 1. FIREBASE CONFIGURATION ---
 const firebaseConfig = {
   apiKey: "AIzaSyAuM17cw3dK6R017kesDiQHDQtgXY_GZ_4", 
   authDomain: "lead-sniper-auth.firebaseapp.com",
@@ -46,7 +47,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-// --- 2. AUTH CONTEXT (Cleaned) ---
+// --- 2. AUTH CONTEXT ---
 const AuthContext = createContext();
 
 const AuthProvider = ({ children }) => {
@@ -92,11 +93,8 @@ const useAuth = () => useContext(AuthContext);
 
 // --- 3. PROTECTED ROUTE COMPONENT ---
 const ProtectedRoute = ({ children }) => {
-  const { user, isPro } = useAuth(); 
-
-  if (!user) {
-    return <Navigate to="/login" />;
-  }
+  const { user } = useAuth(); 
+  if (!user) return <Navigate to="/login" />;
   return children;
 };
 
@@ -110,15 +108,11 @@ export default function App() {
         <div className="page">
           <GlobalStyles />
           <Navbar />
-          
           <main className="content">
             <Routes>
-              {/* PUBLIC ROUTES */}
               <Route path="/" element={<LandingPage />} />
               <Route path="/pricing" element={<PricingPage />} />
               <Route path="/login" element={<LoginPage />} />
-
-              {/* PROTECTED ROUTE */}
               <Route 
                 path="/dashboard" 
                 element={
@@ -129,7 +123,6 @@ export default function App() {
               />
             </Routes>
           </main>
-
           <Footer />
         </div>
       </Router>
@@ -152,7 +145,7 @@ const Navbar = () => {
   return (
     <nav className="nav">
       <div className="logo" onClick={() => navigate('/')}>
-          <div className="logo-icon"><Zap size={20} fill="white" stroke="none"/></div>
+          <div className="logo-icon"><Target size={20} color="white" /></div>
           <span>Lead<span style={{color: '#ea580c'}}>Sniper</span></span>
       </div>
       <div className="nav-links desktop-nav">
@@ -214,7 +207,6 @@ const LandingPage = () => {
           <FeatureCard icon={<Shield/>} title="Safe & Compliant" desc="We respect Reddit API limits." />
         </div>
       </section>
-
       {showPopup && !user && <Popup onClose={() => setShowPopup(false)} />}
     </div>
   );
@@ -393,19 +385,16 @@ const LoginPage = () => {
   );
 };
 
-// --- DASHBOARD (CONNECTED TO DB) ---
+// --- DASHBOARD (REDESIGNED) ---
 const Dashboard = ({ payLink }) => {
   const [step, setStep] = useState('input'); 
   const [productDesc, setProductDesc] = useState('');
   const [logs, setLogs] = useState([]);
   const [leads, setLeads] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const logEndRef = useRef(null);
   
   // GET REAL DATA FROM CONTEXT
   const { user, isPro } = useAuth(); 
-
-  useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [logs]);
 
   const addLog = (msg) => setLogs(prev => [...prev, msg]);
 
@@ -415,12 +404,15 @@ const Dashboard = ({ payLink }) => {
     setIsLoading(true);
     setLogs([]);
     
-    // NOTE: This fetch URL is for your Python backend. Ensure that backend is running and CORS is enabled.
-    const loadingMessages = ["Connecting to API...", "Scanning subreddits...", "Analyzing sentiment...", "Filtering leads...", "Finalizing..."];
-    let msgIndex = 0;
+    // Simulating "AI Thinking" phases
+    const phases = ["Initializing Sniper Bot...", "Scanning r/SaaS...", "Filtering Noise...", "Scoring Intent..."];
+    let phaseIndex = 0;
     const interval = setInterval(() => {
-      if (msgIndex < loadingMessages.length) { addLog(loadingMessages[msgIndex]); msgIndex++; }
-    }, 800);
+        if(phaseIndex < phases.length) {
+            addLog(phases[phaseIndex]);
+            phaseIndex++;
+        }
+    }, 1000);
     
     try {
       const response = await fetch('https://lead-sniper.onrender.com/api/search', {
@@ -429,50 +421,62 @@ const Dashboard = ({ payLink }) => {
         body: JSON.stringify({ product: productDesc }),
       });
       
-      if (!response.ok) {
-        throw new Error(`Server Error: ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`Server Error: ${response.status}`);
 
       const data = await response.json();
       clearInterval(interval);
+      
       if (data.success) {
-        addLog("✅ Complete.");
+        addLog("✅ Targets Acquired.");
         setTimeout(() => {
              setLeads(data.data);
              setStep('results');
              setIsLoading(false);
-        }, 1000);
+        }, 800);
       } 
     } catch (error) {
       clearInterval(interval);
-      console.error("Search API Error:", error);
       addLog(`⚠️ Error: ${error.message || "Connection Failed"}`);
       setIsLoading(false);
     }
   };
 
   const visibleLeads = isPro ? leads : leads.slice(0, 3);
+  const lockedCount = leads.length - 3;
+
+  // Helper for Lead Score Colors
+  const getScoreColor = (score) => {
+      if (score >= 80) return "text-green-400 border-green-500/50";
+      if (score >= 50) return "text-yellow-400 border-yellow-500/50";
+      return "text-red-400 border-red-500/50";
+  };
 
   return (
     <div className="dashboard-container">
       <div className="dash-header">
-        <h2>Dashboard</h2>
+        <h2>Mission Control</h2>
         <div className="user-badge">
             <div className="avatar-small">{user?.email ? user.email[0].toUpperCase() : 'U'}</div>
             <span className="desktop-only">{user?.email || user?.phoneNumber}</span>
-            {isPro && <span style={{marginLeft:10, background: '#22c55e', padding: '2px 8px', borderRadius: 4, fontSize: 10}}>PRO</span>}
+            {isPro && <span className="pro-tag">PRO AGENT</span>}
         </div>
       </div>
 
       <div className="tool-wrapper">
         {step === 'input' && (
-          <div className="input-section">
-            <h1 className="tool-title">New Search</h1>
-            <p className="tool-sub">Describe your product to find leads.</p>
+          <div className="input-section fade-in">
+            <div className="radar-icon-large"><Target size={60} /></div>
+            <h1 className="tool-title">Define Target</h1>
+            <p className="tool-sub">Describe the product you want to sell. Our AI will hunt for buyers.</p>
             <div className="search-box">
-                <textarea className="textarea" placeholder="e.g. CRM for photographers..." value={productDesc} onChange={(e) => setProductDesc(e.target.value)} />
+                <textarea 
+                    className="textarea" 
+                    placeholder="e.g. A CRM for freelance photographers that handles invoicing..." 
+                    value={productDesc} 
+                    onChange={(e) => setProductDesc(e.target.value)} 
+                />
                 <button onClick={handleSearch} disabled={!productDesc.trim() || isLoading} className="primary-btn search-btn">
-                  {isLoading ? <Loader2 className="spin" size={20}/> : "Find Leads Now"}
+                  {isLoading ? <Loader2 className="spin" size={20}/> : <>Start Scan <Zap size={18}/></>}
                 </button>
             </div>
           </div>
@@ -480,43 +484,70 @@ const Dashboard = ({ payLink }) => {
 
         {step === 'processing' && (
           <div className="center-container">
-             <div className="glass-panel terminal">
-                <div className="terminal-header">
-                  <div className="dots"><div className="dot red"/><div className="dot yellow"/><div className="dot green"/></div>
-                  <span className="term-title">Scanning...</span>
-                </div>
-                <div className="terminal-body">
-                  {logs.map((log, i) => <div key={i} className="log-entry"><span className="arrow">➜</span> {log}</div>)}
-                  <div ref={logEndRef}></div>
-                </div>
+             {/* NEW RADAR ANIMATION */}
+             <div className="radar-container">
+                <div className="radar-sweep"></div>
+                <div className="radar-grid"></div>
+                <Target size={40} className="radar-center"/>
+             </div>
+             
+             <div className="terminal-logs">
+                {logs.map((log, i) => (
+                    <div key={i} className="log-entry slide-up">
+                        <span className="timestamp">[{new Date().toLocaleTimeString()}]</span> {log}
+                    </div>
+                ))}
              </div>
           </div>
         )}
 
         {step === 'results' && (
-          <div className="results-container">
+          <div className="results-container fade-in">
             <div className="results-header">
-              <h3>Found {leads.length} Leads</h3>
-              <button onClick={() => setStep('input')} className="secondary-btn">New Search</button>
+              <h3>Target List ({leads.length} found)</h3>
+              <button onClick={() => setStep('input')} className="secondary-btn">New Mission</button>
             </div>
+            
             <div className="grid">
-              {visibleLeads.map((lead) => (
-                <div key={lead.id} className="glass-panel card">
-                  <div className="card-header">
-                    <div className="match-badge"><Zap size={12} fill="currentColor" /> {lead.score}% MATCH</div>
-                    <span className="time">Just now</span>
-                  </div>
-                  <h3 className="card-title">{lead.text}</h3>
-                  <div className="card-footer"><button className="reply-btn">View <ArrowRight size={16}/></button></div>
-                </div>
-              ))}
-              {!isPro && (
-                  <div className="glass-panel paywall">
-                      <Lock size={40} className="lock-icon" />
-                      <h3>Unlock {leads.length - 3} More Leads</h3>
-                      <a href={payLink} target="_blank" rel="noreferrer" style={{textDecoration: 'none'}}>
-                        <button className="primary-btn upgrade-btn">Unlock Now - ₹399 <Star size={18} fill="white" /></button>
-                      </a>
+              {visibleLeads.map((lead) => {
+                const colorClass = getScoreColor(lead.score);
+                return (
+                    <div key={lead.id} className={`glass-panel card ${colorClass.split(" ")[1]}`}>
+                    <div className="card-header">
+                        <div className={`match-badge ${colorClass}`}>
+                            <Zap size={14} fill="currentColor" /> {lead.score}% INTENT
+                        </div>
+                        <span className="time">Detected Just Now</span>
+                    </div>
+                    <h3 className="card-title">{lead.text}</h3>
+                    <div className="card-footer">
+                        <a href={lead.url} target="_blank" rel="noreferrer" className="reply-btn">
+                            View Thread <ExternalLink size={14} style={{marginLeft:5}}/>
+                        </a>
+                    </div>
+                    </div>
+                );
+              })}
+
+              {/* ENHANCED PAYWALL */}
+              {!isPro && lockedCount > 0 && (
+                  <div className="glass-panel paywall-blur">
+                      <div className="blur-overlay">
+                          {[1,2,3].map(i => (
+                              <div key={i} className="fake-card">
+                                  <div className="fake-line width-60"></div>
+                                  <div className="fake-line width-100"></div>
+                              </div>
+                          ))}
+                      </div>
+                      <div className="paywall-content">
+                          <div className="lock-ring"><Lock size={32} /></div>
+                          <h3>{lockedCount} High-Value Leads Hidden</h3>
+                          <p>Upgrade to Pro to reveal all targets and export data.</p>
+                          <a href={payLink} target="_blank" rel="noreferrer" style={{textDecoration: 'none'}}>
+                            <button className="primary-btn upgrade-btn">Unlock Full Report - ₹399</button>
+                          </a>
+                      </div>
                   </div>
               )}
             </div>
@@ -547,81 +578,117 @@ const Popup = ({ onClose }) => (
   </div>
 );
 
+// --- 5. UPDATED CSS STYLES ---
 const GlobalStyles = () => (
   <style>{`
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-    :root { --primary: #ea580c; --primary-dark: #c2410c; --bg-dark: #0f172a; --glass-bg: rgba(255, 255, 255, 0.03); --glass-border: rgba(255, 255, 255, 0.1); --text-muted: #94a3b8; }
+    :root { 
+        --primary: #ea580c; 
+        --primary-dark: #c2410c; 
+        --bg-dark: #0f172a; 
+        --glass-bg: rgba(30, 41, 59, 0.4); 
+        --glass-border: rgba(255, 255, 255, 0.08); 
+        --text-muted: #94a3b8; 
+    }
     * { box-sizing: border-box; }
     body { margin: 0; font-family: 'Plus Jakarta Sans', sans-serif; background-color: var(--bg-dark); color: white; overflow-x: hidden; }
-    .page { min-height: 100vh; display: flex; flex-direction: column; width: 100%; align-items: center; }
-    .content { flex: 1; width: 100%; max-width: 1200px; margin: 0 auto; padding: 20px; }
+    .page { min-height: 100vh; display: flex; flex-direction: column; width: 100%; align-items: center; background: radial-gradient(circle at top, #1e293b 0%, #0f172a 100%); }
+    .content { flex: 1; width: 100%; max-width: 1200px; margin: 0 auto; padding: 20px; position: relative; z-index: 1; }
     
+    /* UTILS */
+    .fade-in { animation: fadeIn 0.5s ease-out; }
+    .slide-up { animation: slideUp 0.3s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
     /* COMPONENTS */
-    .primary-btn { background: linear-gradient(to right, var(--primary), var(--primary-dark)); border: none; color: white; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: transform 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 1rem; }
-    .primary-btn:hover { transform: translateY(-2px); }
-    .secondary-btn { background: rgba(255,255,255,0.1); border: 1px solid var(--glass-border); color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 1rem; }
-    .google-btn { background: white; color: #0f172a; border: none; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 1rem; }
+    .primary-btn { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); border: none; color: white; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 1rem; box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3); }
+    .primary-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(234, 88, 12, 0.5); }
+    .primary-btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
+    .secondary-btn { background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: background 0.2s; }
+    .secondary-btn:hover { background: rgba(255,255,255,0.1); }
     
     /* NAV */
-    .nav { display: flex; justify-content: space-between; align-items: center; padding: 1.5rem 2rem; border-bottom: 1px solid var(--glass-border); max-width: 1200px; margin: 0 auto; width: 100%; }
+    .nav { display: flex; justify-content: space-between; align-items: center; padding: 1.5rem 2rem; border-bottom: 1px solid var(--glass-border); background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px); position: sticky; top: 0; z-index: 50; width: 100%; }
     .nav-links { display: flex; gap: 30px; font-size: 0.95rem; color: var(--text-muted); cursor: pointer; }
-    .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.25rem; cursor: pointer; }
+    .nav-links span:hover, .active { color: white; font-weight: 600; }
+    .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.25rem; cursor: pointer; letter-spacing: -0.5px; }
     .logo-icon { background: var(--primary); width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
-    .active { color: white; font-weight: 600; }
 
     /* LANDING */
-    .landing { text-align: center; padding: 4rem 20px; display: flex; flex-direction: column; align-items: center; }
-    .hero-title { font-size: 3.5rem; line-height: 1.1; margin-bottom: 20px; font-weight: 800; }
+    .landing { text-align: center; padding: 6rem 20px; }
+    .hero-title { font-size: 4rem; line-height: 1.1; margin-bottom: 24px; font-weight: 800; letter-spacing: -1px; }
     .gradient-text { background: linear-gradient(to right, #fbbf24, #ea580c); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .hero-sub { font-size: 1.2rem; color: var(--text-muted); margin-bottom: 40px; max-width: 600px; line-height: 1.6; }
-    .feature-grid, .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 30px; width: 100%; }
-    .glass-card { background: var(--glass-bg); backdrop-filter: blur(10px); border: 1px solid var(--glass-border); border-radius: 16px; padding: 24px; text-align: left; }
-    .price { font-size: 2.5rem; font-weight: 800; margin: 10px 0; }
+    .hero-sub { font-size: 1.25rem; color: var(--text-muted); margin-bottom: 40px; max-width: 600px; margin-left: auto; margin-right: auto; line-height: 1.6; }
+    .feature-grid, .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-top: 60px; width: 100%; }
+    .glass-card { background: var(--glass-bg); backdrop-filter: blur(12px); border: 1px solid var(--glass-border); border-radius: 16px; padding: 32px; text-align: left; transition: transform 0.2s; }
+    .glass-card:hover { border-color: rgba(255,255,255,0.2); }
+    .price { font-size: 3rem; font-weight: 800; margin: 16px 0; color: white; }
+    .price span { font-size: 1rem; color: var(--text-muted); font-weight: 500; }
     
     /* LOGIN */
-    .login-container { display: flex; justify-content: center; align-items: center; min-height: 60vh; padding: 20px; }
-    .login-box { width: 100%; max-width: 400px; text-align: center; }
-    .input-field { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(0,0,0,0.2); color: white; outline: none; font-size: 1rem; }
-    .link { color: var(--primary); cursor: pointer; font-weight: 600; }
-    .mb-10 { margin-bottom: 10px; }
-    .full-width { width: 100%; }
+    .login-container { display: flex; justify-content: center; align-items: center; min-height: 70vh; padding: 20px; }
+    .login-box { width: 100%; max-width: 420px; text-align: center; padding: 40px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+    .input-field { width: 100%; padding: 14px; margin: 10px 0; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(0,0,0,0.3); color: white; outline: none; font-size: 1rem; transition: border 0.2s; }
+    .input-field:focus { border-color: var(--primary); }
+    .google-btn { background: white; color: #0f172a; border: none; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 1rem; transition: background 0.2s; }
+    .google-btn:hover { background: #f1f5f9; }
 
     /* DASHBOARD */
     .dashboard-container { width: 100%; max-width: 1000px; margin: 0 auto; padding: 20px; }
-    .dash-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
-    .user-badge { display: flex; align-items: center; gap: 10px; background: var(--glass-bg); padding: 5px 15px; border-radius: 20px; border: 1px solid var(--glass-border); }
-    .avatar-small { width: 24px; height: 24px; background: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; fontWeight: 700; color: white; }
-    
-    .search-box { background: white; padding: 1.5rem; border-radius: 1rem; color: #0f172a; margin-top: 20px; }
-    .textarea { width: 100%; border: 2px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; font-size: 1rem; resize: none; min-height: 100px; font-family: inherit; }
-    .terminal { background: #0f172a; border-radius: 12px; overflow: hidden; max-width: 600px; margin: 0 auto; border: 1px solid var(--glass-border); }
-    .terminal-body { padding: 20px; height: 300px; overflow-y: auto; font-family: monospace; color: #4ade80; text-align: left; }
-    
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
-    .paywall { grid-column: 1 / -1; text-align: center; padding: 40px; border: 1px dashed var(--primary); display: flex; flex-direction: column; align-items: center; gap: 15px; }
-    .spin { animation: spin 1s linear infinite; }
-    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .dash-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 1px solid var(--glass-border); }
+    .user-badge { display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.05); padding: 6px 16px; border-radius: 30px; border: 1px solid var(--glass-border); }
+    .avatar-small { width: 28px; height: 28px; background: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: white; }
+    .pro-tag { background: #22c55e; color: #052e16; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.5px; }
 
-    /* FOOTER */
-    .footer { border-top: 1px solid var(--glass-border); padding: 40px 0; margin-top: 60px; text-align: center; color: var(--text-muted); }
-    .footer-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; }
+    .input-section { text-align: center; padding: 40px 0; }
+    .radar-icon-large { margin-bottom: 20px; color: var(--primary); animation: pulse 2s infinite; }
+    .search-box { background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); padding: 10px; border-radius: 12px; margin-top: 30px; display: flex; flex-direction: column; gap: 10px; }
+    .textarea { width: 100%; border: none; background: transparent; padding: 15px; font-size: 1.1rem; resize: none; min-height: 120px; font-family: inherit; color: white; outline: none; }
+    .search-btn { width: 100%; border-radius: 8px; }
 
-    /* POPUP */
-    .popup-overlay { position: fixed; bottom: 20px; right: 20px; z-index: 100; animation: slideIn 0.5s ease-out; }
-    .popup-card { background: white; color: #0f172a; padding: 20px; border-radius: 12px; width: 300px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); position: relative; text-align: center; }
-    .close-btn { position: absolute; top: 10px; right: 10px; background: none; border: none; cursor: pointer; color: #94a3b8; }
-    @keyframes slideIn { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    /* RADAR ANIMATION */
+    .center-container { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 400px; }
+    .radar-container { position: relative; width: 120px; height: 120px; border: 2px solid #334155; border-radius: 50%; display: flex; align-items: center; justify-content: center; overflow: hidden; background: radial-gradient(circle, #1e293b 0%, #0f172a 70%); box-shadow: 0 0 30px rgba(234, 88, 12, 0.2); }
+    .radar-grid { position: absolute; width: 100%; height: 100%; background-image: radial-gradient(transparent 90%, #334155 90%); background-size: 20px 20px; opacity: 0.3; }
+    .radar-sweep { position: absolute; width: 50%; height: 50%; background: linear-gradient(90deg, transparent, rgba(234, 88, 12, 0.5)); top: 0; left: 50%; transform-origin: bottom left; animation: scan 2s linear infinite; }
+    .radar-center { color: var(--primary); z-index: 2; }
+    
+    @keyframes scan { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @keyframes pulse { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.7; transform: scale(0.95); } 100% { opacity: 1; transform: scale(1); } }
+
+    .terminal-logs { margin-top: 30px; font-family: 'Courier New', monospace; color: #4ade80; text-align: left; width: 100%; max-width: 500px; height: 100px; overflow: hidden; display: flex; flex-direction: column-reverse; opacity: 0.8; font-size: 0.9rem; }
+    .timestamp { color: #64748b; margin-right: 10px; }
+
+    /* RESULTS */
+    .results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; }
+    .card { padding: 24px; display: flex; flex-direction: column; height: 100%; transition: transform 0.2s, box-shadow 0.2s; position: relative; overflow: hidden; }
+    .card:hover { transform: translateY(-4px); box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5); }
+    .card-header { display: flex; justify-content: space-between; margin-bottom: 16px; font-size: 0.85rem; }
+    .match-badge { font-weight: 800; display: flex; align-items: center; gap: 4px; }
+    .time { color: var(--text-muted); }
+    .card-title { font-size: 1.1rem; margin: 0 0 20px 0; line-height: 1.5; flex: 1; font-weight: 600; }
+    .reply-btn { margin-top: auto; display: inline-flex; align-items: center; color: white; text-decoration: none; font-weight: 600; font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid transparent; transition: border 0.2s; }
+    .reply-btn:hover { border-bottom-color: var(--primary); color: var(--primary); }
+
+    /* PAYWALL BLUR */
+    .paywall-blur { grid-column: 1 / -1; position: relative; overflow: hidden; border: 1px dashed #334155; padding: 0; min-height: 250px; display: flex; align-items: center; justify-content: center; }
+    .blur-overlay { position: absolute; inset: 0; filter: blur(8px); opacity: 0.3; pointer-events: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; padding: 24px; }
+    .fake-card { background: #334155; height: 150px; border-radius: 16px; padding: 20px; }
+    .fake-line { height: 10px; background: #475569; margin-bottom: 10px; border-radius: 4px; }
+    .width-60 { width: 60%; } .width-100 { width: 100%; }
+    
+    .paywall-content { position: relative; z-index: 10; text-align: center; max-width: 400px; padding: 20px; }
+    .lock-ring { background: rgba(255,255,255,0.1); width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto; border: 1px solid rgba(255,255,255,0.2); }
 
     /* RESPONSIVE */
     @media (max-width: 768px) {
-      .hero-title { font-size: 2.2rem; }
+      .hero-title { font-size: 2.5rem; }
       .footer-content { flex-direction: column; gap: 20px; }
       .desktop-nav { display: none; }
       .nav { padding: 1rem; }
-      .popup-overlay { bottom: 10px; right: 10px; left: 10px; width: auto; }
-      .popup-card { width: 100%; }
       .dashboard-container { padding: 10px; }
-      .search-box { padding: 1rem; }
     }
   `}</style>
 );
