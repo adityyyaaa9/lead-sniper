@@ -38,7 +38,7 @@ try:
 except Exception as e:
     print(f"⚠️ Firebase Error: {e}")
 
-# B. Gemini (free, no credit card needed)
+# B. Gemini
 try:
     gemini_api_key = os.environ.get("GEMINI_API_KEY")
     if gemini_api_key:
@@ -52,46 +52,10 @@ print("✅ Reddit: Using public JSON (no API key required)")
 
 
 # ------------------------------------------------------------------
-# 2. GEMINI AI HELPER
+# 2. GEMINI AI HELPERS
 # ------------------------------------------------------------------
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
-
-def call_gemini(prompt):
-    """Call Gemini API and return the text response."""
-    res = requests.post(
-        f"{GEMINI_URL}?key={gemini_api_key}",
-        headers={"Content-Type": "application/json"},
-        json={
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0,
-                "maxOutputTokens": 10,
-            }
-        },
-        timeout=15
-    )
-    data = res.json()
-    return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-
-
-def call_gemini_reply(prompt):
-    """Call Gemini API for longer reply drafts."""
-    res = requests.post(
-        f"{GEMINI_URL}?key={gemini_api_key}",
-        headers={"Content-Type": "application/json"},
-        json={
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.7,
-                "maxOutputTokens": 200,
-            }
-        },
-        timeout=15
-    )
-    data = res.json()
-    return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-
 
 def analyze_lead_intent(text, product_name):
     """Score a Reddit post 0-100 for buying intent using Gemini."""
@@ -102,16 +66,42 @@ def analyze_lead_intent(text, product_name):
 Rate their buying intent from 0 to 100.
 0 = Completely irrelevant or spam.
 100 = Actively asking to buy or find a solution right now.
-Return ONLY the integer number, nothing else.
+Return ONLY a single integer number between 0 and 100. No words, no explanation, just the number.
 
-Post: "{text[:600]}"
+Post: "{text[:500]}"
 
-Number:"""
+Score (integer only):"""
 
-    result = call_gemini(prompt)
-    # Extract just the number in case Gemini adds extra text
-    number = ''.join(filter(str.isdigit, result.split()[0]))
-    return int(number) if number else 0
+    res = requests.post(
+        f"{GEMINI_URL}?key={gemini_api_key}",
+        headers={"Content-Type": "application/json"},
+        json={
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0,
+                "maxOutputTokens": 5,
+            }
+        },
+        timeout=15
+    )
+
+    raw = res.json()
+    print(f"  🔍 Gemini raw response: {json.dumps(raw)[:300]}")
+
+    # Extract text from response
+    try:
+        text_out = raw["candidates"][0]["content"]["parts"][0]["text"].strip()
+        print(f"  🔍 Gemini text output: '{text_out}'")
+        # Extract only digits
+        digits = ''.join(filter(str.isdigit, text_out))
+        score = int(digits) if digits else 0
+        # Clamp between 0-100
+        score = max(0, min(100, score))
+        print(f"  🎯 Final score: {score}")
+        return score
+    except Exception as e:
+        print(f"  ❌ Score parse error: {e} | raw: {raw}")
+        return 0
 
 
 def draft_reply(post_text, product_name):
@@ -126,23 +116,37 @@ Rules:
 - Mention '{product_name}' naturally at the end as ONE possible option, not a hard sell.
 - Max 4 sentences. No exclamation marks. No cringe.
 
-Post: "{post_text[:600]}"
+Post: "{post_text[:500]}"
 
 Reply:"""
 
-    return call_gemini_reply(prompt)
+    res = requests.post(
+        f"{GEMINI_URL}?key={gemini_api_key}",
+        headers={"Content-Type": "application/json"},
+        json={
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.7,
+                "maxOutputTokens": 200,
+            }
+        },
+        timeout=15
+    )
+    try:
+        return res.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+    except Exception as e:
+        print(f"  ⚠️ Reply draft failed: {e}")
+        return ""
 
 
 # ------------------------------------------------------------------
 # 3. REDDIT PUBLIC JSON SEARCH
 # ------------------------------------------------------------------
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; LeadSniper/1.0)"
-}
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; LeadSniper/1.0)"}
 
 def search_reddit_public(query, subreddits=None, limit=30):
-    """Search Reddit using the free public JSON endpoint. No API key needed."""
+    """Search Reddit using free public JSON. No API key needed."""
     posts = []
 
     if subreddits:
@@ -150,18 +154,11 @@ def search_reddit_public(query, subreddits=None, limit=30):
             if len(posts) >= limit:
                 break
             url = f"https://www.reddit.com/r/{subreddit}/search.json"
-            params = {
-                "q": query,
-                "sort": "new",
-                "limit": min(25, limit),
-                "restrict_sr": "true",
-                "t": "month",
-            }
+            params = {"q": query, "sort": "new", "limit": min(25, limit), "restrict_sr": "true", "t": "month"}
             try:
                 res = requests.get(url, headers=HEADERS, params=params, timeout=10)
                 if res.status_code == 200:
-                    children = res.json().get("data", {}).get("children", [])
-                    for child in children:
+                    for child in res.json().get("data", {}).get("children", []):
                         p = child.get("data", {})
                         posts.append({
                             "id":          p.get("id", ""),
@@ -171,24 +168,16 @@ def search_reddit_public(query, subreddits=None, limit=30):
                             "url":         f"https://reddit.com{p.get('permalink', '')}",
                             "created_utc": int(p.get("created_utc", 0)),
                         })
-                else:
-                    print(f"  ⚠️ r/{subreddit} returned {res.status_code}")
                 time.sleep(1)
             except Exception as e:
                 print(f"  ⚠️ Error fetching r/{subreddit}: {e}")
     else:
         url = "https://www.reddit.com/search.json"
-        params = {
-            "q": query,
-            "sort": "new",
-            "limit": min(25, limit),
-            "t": "month",
-        }
+        params = {"q": query, "sort": "new", "limit": min(25, limit), "t": "month"}
         try:
             res = requests.get(url, headers=HEADERS, params=params, timeout=10)
             if res.status_code == 200:
-                children = res.json().get("data", {}).get("children", [])
-                for child in children:
+                for child in res.json().get("data", {}).get("children", []):
                     p = child.get("data", {})
                     posts.append({
                         "id":          p.get("id", ""),
@@ -209,9 +198,8 @@ def search_reddit_public(query, subreddits=None, limit=30):
 # ------------------------------------------------------------------
 
 def run_lead_search(job_id, product_name, subreddits, limit, user_email):
-    """Fetch posts → score with Gemini → draft replies → save to Firebase."""
     if not db:
-        print("❌ No Firebase — cannot save job results.")
+        print("❌ No Firebase.")
         return
 
     job_ref = db.collection('jobs').document(job_id)
@@ -224,27 +212,19 @@ def run_lead_search(job_id, product_name, subreddits, limit, user_email):
         print(f"  → {len(posts)} posts fetched")
 
         if not posts:
-            job_ref.update({
-                "status":      "done",
-                "results":     [],
-                "total":       0,
-                "completedAt": firestore.SERVER_TIMESTAMP,
-            })
+            job_ref.update({"status": "done", "results": [], "total": 0, "completedAt": firestore.SERVER_TIMESTAMP})
             return
 
         results = []
         for post in posts:
             full_text = f"{post['title']}. {post['body']}"
 
-            # Score intent with Gemini
             try:
                 score = analyze_lead_intent(full_text, product_name)
-                print(f"  ✅ {post['title'][:40]}... → {score}")
             except Exception as e:
                 print(f"  ⚠️ Score failed: {e}")
                 score = 0
 
-            # Draft reply only for high-intent leads (saves API quota)
             reply_draft = ""
             if score >= 60:
                 try:
@@ -263,7 +243,6 @@ def run_lead_search(job_id, product_name, subreddits, limit, user_email):
                 "created_utc": post["created_utc"],
             })
 
-            # Small delay to respect Gemini free tier rate limits
             time.sleep(0.5)
 
         results.sort(key=lambda x: x['score'], reverse=True)
@@ -312,15 +291,9 @@ def search_leads():
 
     job_id = str(uuid.uuid4())
     db.collection('jobs').document(job_id).set({
-        "jobId":      job_id,
-        "product":    product_name,
-        "subreddits": subreddits,
-        "limit":      limit,
-        "userEmail":  user_email,
-        "status":     "queued",
-        "results":    [],
-        "total":      0,
-        "createdAt":  firestore.SERVER_TIMESTAMP,
+        "jobId": job_id, "product": product_name, "subreddits": subreddits,
+        "limit": limit, "userEmail": user_email, "status": "queued",
+        "results": [], "total": 0, "createdAt": firestore.SERVER_TIMESTAMP,
     })
 
     threading.Thread(
@@ -330,9 +303,9 @@ def search_leads():
     ).start()
 
     return jsonify({
-        "success":                True,
-        "job_id":                 job_id,
-        "message":                f"Search started. Poll /api/job/{job_id} for results.",
+        "success": True,
+        "job_id":  job_id,
+        "message": f"Search started. Poll /api/job/{job_id} for results.",
         "estimated_time_seconds": limit * 2,
     })
 
@@ -341,69 +314,43 @@ def search_leads():
 def get_job(job_id):
     if not db:
         return jsonify({"success": False, "error": "Firebase not configured."}), 503
-
     job = db.collection('jobs').document(job_id).get()
     if not job.exists:
         return jsonify({"success": False, "error": "Job not found."}), 404
-
     d = job.to_dict()
-    return jsonify({
-        "success": True,
-        "job_id":  job_id,
-        "status":  d.get("status"),
-        "total":   d.get("total", 0),
-        "results": d.get("results", []),
-        "error":   d.get("error"),
-    })
+    return jsonify({"success": True, "job_id": job_id, "status": d.get("status"),
+                    "total": d.get("total", 0), "results": d.get("results", []), "error": d.get("error")})
 
 
 @app.route('/api/jobs', methods=['GET'])
 def list_jobs():
     if not db:
         return jsonify({"success": False, "error": "Firebase not configured."}), 503
-
     email = request.args.get('email', 'anonymous')
-    jobs_ref = (
-        db.collection('jobs')
-          .where('userEmail', '==', email)
-          .order_by('createdAt', direction=firestore.Query.DESCENDING)
-          .limit(20)
-    )
+    jobs_ref = (db.collection('jobs').where('userEmail', '==', email)
+                  .order_by('createdAt', direction=firestore.Query.DESCENDING).limit(20))
     jobs = []
     for doc in jobs_ref.stream():
         d = doc.to_dict()
-        jobs.append({
-            "job_id":     d.get("jobId"),
-            "product":    d.get("product"),
-            "subreddits": d.get("subreddits"),
-            "status":     d.get("status"),
-            "total":      d.get("total", 0),
-        })
+        jobs.append({"job_id": d.get("jobId"), "product": d.get("product"),
+                     "subreddits": d.get("subreddits"), "status": d.get("status"), "total": d.get("total", 0)})
     return jsonify({"success": True, "jobs": jobs})
 
-
-# ------------------------------------------------------------------
-# 6. SHOPIFY WEBHOOK
-# ------------------------------------------------------------------
 
 @app.route('/api/webhook/shopify', methods=['POST'])
 def shopify_webhook():
     shopify_secret = os.environ.get('SHOPIFY_SECRET')
-    signature      = request.headers.get('X-Shopify-Hmac-Sha256')
-    data           = request.get_data()
-
+    signature = request.headers.get('X-Shopify-Hmac-Sha256')
+    data = request.get_data()
     if shopify_secret and not verify_shopify_signature(data, signature, shopify_secret):
         return jsonify({"error": "Unauthorized"}), 401
-
     try:
-        payload        = request.json
+        payload = request.json
         customer_email = payload.get('email') or payload.get('customer', {}).get('email')
         if customer_email and db:
             db.collection('customers').document(customer_email).set({
-                'email':        customer_email,
-                'isPro':        True,
-                'purchaseDate': firestore.SERVER_TIMESTAMP,
-                'source':       'shopify_webhook'
+                'email': customer_email, 'isPro': True,
+                'purchaseDate': firestore.SERVER_TIMESTAMP, 'source': 'shopify_webhook'
             }, merge=True)
         return jsonify({"success": True}), 200
     except Exception as e:
@@ -413,14 +360,10 @@ def shopify_webhook():
 def verify_shopify_signature(data, signature, secret):
     if not signature or not secret:
         return False
-    digest        = hmac.new(secret.encode('utf-8'), data, hashlib.sha256).digest()
+    digest = hmac.new(secret.encode('utf-8'), data, hashlib.sha256).digest()
     computed_hmac = base64.b64encode(digest).decode()
     return hmac.compare_digest(computed_hmac, signature)
 
-
-# ------------------------------------------------------------------
-# 7. RUN
-# ------------------------------------------------------------------
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
