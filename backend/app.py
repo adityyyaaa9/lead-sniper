@@ -12,7 +12,6 @@ from flask_cors import CORS
 import firebase_admin
 from firebase_admin import credentials, firestore
 from dotenv import load_dotenv
-from openai import OpenAI
 
 load_dotenv()
 
@@ -23,7 +22,7 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 # 1. SETUP CLIENTS
 # ------------------------------------------------------------------
 db = None
-openai_client = None
+gemini_api_key = None
 
 # A. Firebase
 try:
@@ -39,24 +38,103 @@ try:
 except Exception as e:
     print(f"⚠️ Firebase Error: {e}")
 
-# B. OpenAI
+# B. Gemini (free, no credit card needed)
 try:
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if api_key:
-        openai_client = OpenAI(api_key=api_key)
-        print("✅ OpenAI Initialized")
+    gemini_api_key = os.environ.get("GEMINI_API_KEY")
+    if gemini_api_key:
+        print("✅ Gemini AI Initialized (free tier)")
     else:
-        print("⚠️ OpenAI Key Missing")
+        print("⚠️ Gemini API Key Missing")
 except Exception as e:
-    print(f"⚠️ OpenAI Error: {e}")
+    print(f"⚠️ Gemini Error: {e}")
 
-# No Reddit API key needed!
 print("✅ Reddit: Using public JSON (no API key required)")
 
 
 # ------------------------------------------------------------------
-# 2. REDDIT PUBLIC JSON SEARCH
-# Every Reddit URL has a free .json version — no credentials needed.
+# 2. GEMINI AI HELPER
+# ------------------------------------------------------------------
+
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+
+def call_gemini(prompt):
+    """Call Gemini API and return the text response."""
+    res = requests.post(
+        f"{GEMINI_URL}?key={gemini_api_key}",
+        headers={"Content-Type": "application/json"},
+        json={
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0,
+                "maxOutputTokens": 10,
+            }
+        },
+        timeout=15
+    )
+    data = res.json()
+    return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+
+
+def call_gemini_reply(prompt):
+    """Call Gemini API for longer reply drafts."""
+    res = requests.post(
+        f"{GEMINI_URL}?key={gemini_api_key}",
+        headers={"Content-Type": "application/json"},
+        json={
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.7,
+                "maxOutputTokens": 200,
+            }
+        },
+        timeout=15
+    )
+    data = res.json()
+    return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+
+
+def analyze_lead_intent(text, product_name):
+    """Score a Reddit post 0-100 for buying intent using Gemini."""
+    if not gemini_api_key:
+        raise RuntimeError("Gemini API key not configured.")
+
+    prompt = f"""Analyze this Reddit post. The user may be looking for a product like '{product_name}'.
+Rate their buying intent from 0 to 100.
+0 = Completely irrelevant or spam.
+100 = Actively asking to buy or find a solution right now.
+Return ONLY the integer number, nothing else.
+
+Post: "{text[:600]}"
+
+Number:"""
+
+    result = call_gemini(prompt)
+    # Extract just the number in case Gemini adds extra text
+    number = ''.join(filter(str.isdigit, result.split()[0]))
+    return int(number) if number else 0
+
+
+def draft_reply(post_text, product_name):
+    """Draft a helpful, non-salesy Reddit reply mentioning the product."""
+    if not gemini_api_key:
+        return ""
+
+    prompt = f"""You are an expert community manager. Write a short, helpful Reddit reply to the post below.
+Rules:
+- Sound like a real Reddit user, not a marketer.
+- Be genuinely helpful first. Answer their actual question.
+- Mention '{product_name}' naturally at the end as ONE possible option, not a hard sell.
+- Max 4 sentences. No exclamation marks. No cringe.
+
+Post: "{post_text[:600]}"
+
+Reply:"""
+
+    return call_gemini_reply(prompt)
+
+
+# ------------------------------------------------------------------
+# 3. REDDIT PUBLIC JSON SEARCH
 # ------------------------------------------------------------------
 
 HEADERS = {
@@ -64,14 +142,10 @@ HEADERS = {
 }
 
 def search_reddit_public(query, subreddits=None, limit=30):
-    """
-    Search Reddit using the free public JSON endpoint.
-    No API key required. Returns a list of post dicts.
-    """
+    """Search Reddit using the free public JSON endpoint. No API key needed."""
     posts = []
 
     if subreddits:
-        # Search each subreddit individually
         for subreddit in subreddits:
             if len(posts) >= limit:
                 break
@@ -99,12 +173,10 @@ def search_reddit_public(query, subreddits=None, limit=30):
                         })
                 else:
                     print(f"  ⚠️ r/{subreddit} returned {res.status_code}")
-                time.sleep(1)  # be polite to Reddit
+                time.sleep(1)
             except Exception as e:
                 print(f"  ⚠️ Error fetching r/{subreddit}: {e}")
-
     else:
-        # Search all of Reddit
         url = "https://www.reddit.com/search.json"
         params = {
             "q": query,
@@ -127,61 +199,9 @@ def search_reddit_public(query, subreddits=None, limit=30):
                         "created_utc": int(p.get("created_utc", 0)),
                     })
         except Exception as e:
-            print(f"  ⚠️ Error searching r/all: {e}")
+            print(f"  ⚠️ Error searching Reddit: {e}")
 
     return posts[:limit]
-
-
-# ------------------------------------------------------------------
-# 3. AI HELPERS
-# ------------------------------------------------------------------
-
-def analyze_lead_intent(text, product_name):
-    """Score a Reddit post 0-100 for buying intent using GPT."""
-    if not openai_client:
-        raise RuntimeError("OpenAI client not initialized.")
-
-    prompt = f"""
-Analyze this Reddit post. The user may be looking for a product like '{product_name}'.
-Rate their buying intent from 0 to 100.
-0 = Completely irrelevant or spam.
-100 = Actively asking to buy or find a solution right now.
-Return ONLY the integer number, nothing else.
-
-Post: "{text[:600]}"
-"""
-    response = openai_client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=5,
-        temperature=0
-    )
-    return int(response.choices[0].message.content.strip())
-
-
-def draft_reply(post_text, product_name):
-    """Draft a helpful, non-salesy Reddit reply mentioning the product."""
-    if not openai_client:
-        return ""
-
-    prompt = f"""
-You are an expert community manager. Write a short, helpful Reddit reply to the post below.
-Rules:
-- Sound like a real Reddit user, not a marketer.
-- Be genuinely helpful first. Answer their actual question.
-- Mention '{product_name}' naturally at the end as ONE possible option, not a hard sell.
-- Max 4 sentences. No exclamation marks. No cringe.
-
-Post: "{post_text[:600]}"
-
-Reply:"""
-    response = openai_client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=150,
-        temperature=0.7
-    )
-    return response.choices[0].message.content.strip()
 
 
 # ------------------------------------------------------------------
@@ -189,10 +209,7 @@ Reply:"""
 # ------------------------------------------------------------------
 
 def run_lead_search(job_id, product_name, subreddits, limit, user_email):
-    """
-    Runs in a background thread.
-    Fetches posts → scores with AI → drafts replies → saves to Firebase.
-    """
+    """Fetch posts → score with Gemini → draft replies → save to Firebase."""
     if not db:
         print("❌ No Firebase — cannot save job results.")
         return
@@ -202,7 +219,6 @@ def run_lead_search(job_id, product_name, subreddits, limit, user_email):
     try:
         job_ref.update({"status": "running"})
 
-        # 1. Fetch posts (no API key needed)
         print(f"🔎 Fetching posts for '{product_name}'...")
         posts = search_reddit_public(product_name, subreddits, limit)
         print(f"  → {len(posts)} posts fetched")
@@ -216,17 +232,19 @@ def run_lead_search(job_id, product_name, subreddits, limit, user_email):
             })
             return
 
-        # 2. Score each post and draft replies for hot leads
         results = []
         for post in posts:
             full_text = f"{post['title']}. {post['body']}"
 
+            # Score intent with Gemini
             try:
                 score = analyze_lead_intent(full_text, product_name)
+                print(f"  ✅ {post['title'][:40]}... → {score}")
             except Exception as e:
                 print(f"  ⚠️ Score failed: {e}")
                 score = 0
 
+            # Draft reply only for high-intent leads (saves API quota)
             reply_draft = ""
             if score >= 60:
                 try:
@@ -244,12 +262,12 @@ def run_lead_search(job_id, product_name, subreddits, limit, user_email):
                 "reply_draft": reply_draft,
                 "created_utc": post["created_utc"],
             })
-            print(f"  ✅ {post['title'][:40]}... → {score}")
 
-        # 3. Sort by highest intent score
+            # Small delay to respect Gemini free tier rate limits
+            time.sleep(0.5)
+
         results.sort(key=lambda x: x['score'], reverse=True)
 
-        # 4. Save to Firebase
         job_ref.update({
             "status":      "done",
             "results":     results,
@@ -271,25 +289,15 @@ def run_lead_search(job_id, product_name, subreddits, limit, user_email):
 def home():
     return jsonify({
         "reddit":   "✅ Public JSON (no API key needed)",
-        "openai":   "✅ Active" if openai_client else "❌ Missing key",
+        "gemini":   "✅ Active (free tier)" if gemini_api_key else "❌ Missing key",
         "firebase": "✅ Active" if db else "❌ Not connected",
     })
 
 
 @app.route('/api/search', methods=['POST'])
 def search_leads():
-    """
-    Kick off a background lead search job.
-    Returns job_id immediately — frontend polls /api/job/<job_id>.
-
-    Body:
-      product    (str, required)
-      subreddits (list, optional) e.g. ["startups", "entrepreneur"]
-      limit      (int, optional)  default 30, max 50
-      email      (str, optional)
-    """
-    if not openai_client:
-        return jsonify({"success": False, "error": "OpenAI API not configured."}), 503
+    if not gemini_api_key:
+        return jsonify({"success": False, "error": "Gemini API not configured."}), 503
     if not db:
         return jsonify({"success": False, "error": "Firebase not configured."}), 503
 
@@ -302,7 +310,6 @@ def search_leads():
     if not product_name:
         return jsonify({"success": False, "error": "Please provide a 'product'."}), 400
 
-    # Create job record in Firebase
     job_id = str(uuid.uuid4())
     db.collection('jobs').document(job_id).set({
         "jobId":      job_id,
@@ -316,7 +323,6 @@ def search_leads():
         "createdAt":  firestore.SERVER_TIMESTAMP,
     })
 
-    # Fire search in background thread — response returns instantly
     threading.Thread(
         target=run_lead_search,
         args=(job_id, product_name, subreddits, limit, user_email),
@@ -333,7 +339,6 @@ def search_leads():
 
 @app.route('/api/job/<job_id>', methods=['GET'])
 def get_job(job_id):
-    """Poll this to check job status and get results."""
     if not db:
         return jsonify({"success": False, "error": "Firebase not configured."}), 503
 
@@ -354,7 +359,6 @@ def get_job(job_id):
 
 @app.route('/api/jobs', methods=['GET'])
 def list_jobs():
-    """Get recent jobs for a user. Query param: ?email=user@example.com"""
     if not db:
         return jsonify({"success": False, "error": "Firebase not configured."}), 503
 
