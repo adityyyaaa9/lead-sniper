@@ -55,7 +55,7 @@ print("✅ Reddit: Using public JSON (no API key required)")
 # 2. GEMINI AI HELPERS
 # ------------------------------------------------------------------
 
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
 def analyze_lead_intent(text, product_name):
     """Score a Reddit post 0-100 for buying intent using Gemini."""
