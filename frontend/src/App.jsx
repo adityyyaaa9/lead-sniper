@@ -396,7 +396,7 @@ const GlobalStyles = () => (
     *{box-sizing:border-box;}
     body{margin:0;font-family:'Plus Jakarta Sans',sans-serif;background-color:var(--bg-dark);color:white;overflow-x:hidden;}
     .page{min-height:100vh;display:flex;flex-direction:column;width:100%;background:radial-gradient(circle at top,#1e293b 0%,#0f172a 100%);}
-    .content{flex:1;width:100%;max-width:1200px;margin:0 auto;padding:20px;position:relative;z-index:1;}
+    .content{flex:1;width:100%;max-width:100%;margin:0 auto;padding:20px;position:relative;z-index:1;}
     .fade-in{animation:fadeIn 0.5s ease-out;}
     @keyframes fadeIn{from{opacity:0}to{opacity:1}}
     @keyframes slideUp{from{transform:translateY(10px);opacity:0}to{transform:translateY(0);opacity:1}}
@@ -410,7 +410,7 @@ const GlobalStyles = () => (
     .nav-links span:hover,.active{color:white;font-weight:600;}
     .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.25rem;cursor:pointer;letter-spacing:-0.5px;}
     .logo-icon{background:var(--primary);width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;}
-    .landing{text-align:center;padding:6rem 20px;}
+   .landing{text-align:center;padding:6rem 20px;width:100%;}
     .hero-title{font-size:4rem;line-height:1.1;margin-bottom:24px;font-weight:800;letter-spacing:-1px;}
     .gradient-text{background:linear-gradient(to right,#fbbf24,#ea580c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
     .hero-sub{font-size:1.25rem;color:var(--text-muted);margin-bottom:40px;max-width:600px;margin-left:auto;margin-right:auto;line-height:1.6;}
