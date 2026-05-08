@@ -395,7 +395,7 @@ const GlobalStyles = () => (
     :root{--primary:#ea580c;--primary-dark:#c2410c;--bg-dark:#0f172a;--glass-bg:rgba(30,41,59,0.4);--glass-border:rgba(255,255,255,0.08);--text-muted:#94a3b8;}
     *{box-sizing:border-box;}
     body{margin:0;font-family:'Plus Jakarta Sans',sans-serif;background-color:var(--bg-dark);color:white;overflow-x:hidden;}
-    .page{min-height:100vh;display:flex;flex-direction:column;width:100%;align-items:center;background:radial-gradient(circle at top,#1e293b 0%,#0f172a 100%);}
+    .page{min-height:100vh;display:flex;flex-direction:column;width:100%;background:radial-gradient(circle at top,#1e293b 0%,#0f172a 100%);}
     .content{flex:1;width:100%;max-width:1200px;margin:0 auto;padding:20px;position:relative;z-index:1;}
     .fade-in{animation:fadeIn 0.5s ease-out;}
     @keyframes fadeIn{from{opacity:0}to{opacity:1}}
@@ -425,7 +425,7 @@ const GlobalStyles = () => (
     .input-field:focus{border-color:var(--primary);}
     .google-btn{background:white;color:#0f172a;border:none;padding:12px;border-radius:8px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;font-size:1rem;transition:background 0.2s;width:100%;}
     .google-btn:hover{background:#f1f5f9;}
-    .dashboard-container{width:100%;max-width:1000px;margin:0 auto;padding:20px;}
+    .dashboard-container{width:100%;max-width:1400px;margin:0 auto;padding:20px;}
     .dash-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:40px;padding-bottom:20px;border-bottom:1px solid var(--glass-border);}
     .user-badge{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.05);padding:6px 16px;border-radius:30px;border:1px solid var(--glass-border);}
     .avatar-small{width:28px;height:28px;background:var(--primary);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.85rem;font-weight:700;color:white;}
