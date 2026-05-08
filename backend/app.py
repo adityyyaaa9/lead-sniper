@@ -46,7 +46,7 @@ except Exception as e:
 
 print("✅ Reddit: Using public JSON (no API key required)")
 
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent"
 HEADERS    = {"User-Agent": "Mozilla/5.0 (compatible; LeadSniper/1.0)"}
 
 # ------------------------------------------------------------------
